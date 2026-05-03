@@ -1,0 +1,36 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Xcode
+build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+*.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+
+# Swift Package Manager
+.build/
+.swiftpm/
+Packages/
+Package.pins
+Package.resolved
+
+# Brainstorm artifacts (local-only mockups + visual companion sessions)
+.superpowers/
+
+# Bun / Node (for tools/factory later)
+node_modules/
+bun.lockb
+.env
+.env.local
+
+# Editor
+.qodo/
+.vscode/
+.idea/
+
+# Claude Code (local-only settings; agents/skills committed when added)
+.claude/settings.local.json
