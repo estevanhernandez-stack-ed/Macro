@@ -112,3 +112,35 @@ These are the kind of "what if" findings deepening rounds produce. Recording the
 **Pattern note:** /spec produces ~250+ lines because it carries the heading-address structure /checklist consumes (every architectural component gets its own subheading). Bodies are pointer-stubbed to design spec, but the structural skeleton is faithful — that's the (mm) pattern's compression discipline at work.
 
 **Friction / session logging:** still not invoked.
+
+## /checklist
+
+Run mode: **autonomous** (carrying forward, but build mode itself surfaced to Estevan for explicit confirmation before /build runs).
+
+**Sequencing decisions:** three Key Technical Decisions from spec drove the order — schema codegen first (item 2), engine before editor (items 5–6 before 8), PS99 plugin authored last (item 10). Item 6 is a deliberate verification beat — bridges items 5 (engine exists) and 7 (recorder exists) so the engine can be exercised against hand-authored fixtures before the recorder is built. Without item 6, the engine would have nothing to play against until the recorder lands, which means engine bugs would surface late.
+
+**Build preferences encoded in header:**
+- Build mode: Autonomous (default per `autonomy_level: fully-autonomous`; surfaced for builder confirmation)
+- Comprehension checks: N/A
+- Git: per-item commits with `feat(area):` / `docs(area):` / `chore(area):` prefixes
+- Verification: Yes, three checkpoints at items 6, 8, 9
+- Check-in cadence: N/A
+
+**Three checkpoints chosen at the riskiest transitions:**
+1. After item 6 — engine + native services + first hand-authored bundles working. Pre-recorder, pre-editor. The "is the runtime safe + correct?" gate.
+2. After item 8 — recorder + editor + save flow integrated. The "can we author end-to-end?" gate.
+3. After item 9 — library + install + auto-update + rollback. The "can we distribute + maintain?" gate.
+
+After checkpoint 3, items 10 (plugin + seeds) and 11 (release pipeline) are well-trodden infra that the agent can ship without further pause. Item 12 is doc/security cleanup (always last).
+
+**Item count: 12.** Within the SKILL's 8–12 target. Each item atomic enough for one /build session in iterative-prototype mode (some items, especially 4 and 5, may take 2 sessions — that's fine in autonomous + iterative-prototype).
+
+**Documentation & security verification (item 12):** README rewrite + screenshots + tech-stack list + secrets scan + dependency audit + input-validation spot-check + Sparkle EdDSA signature enforcement check + GitHub Actions secret hygiene. Tag `v0.1.0` for first public release as part of this item.
+
+**Confidence vs needs-guidance:** confident on the sequencing (the three Key Technical Decisions made it nearly mechanical). Needs Estevan input at three /build-time clarification points: (a) PS99 canonical keybindings during item 10's `plugin.yaml` authoring; (b) clan-battle macro mechanic during item 10's seed authoring; (c) build-mode confirmation BEFORE item 1 starts (autonomous vs step-by-step).
+
+**Submission planning:** v0.0.1 internal test release at item 11; v0.1.0 first public release at item 12. The "Big Update Friday → patched macros Saturday" factory pitch is NOT v1; that's Subsystem B's spec, separate cycle.
+
+**Active shaping:** autonomous flow per the contract. Substantive sequencing decisions were carried from the design spec's three Key Technical Decisions (which I authored during /spec but were really crystallized during the brainstorm + spec authoring upstream).
+
+**Friction / session logging:** still not invoked.
