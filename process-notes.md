@@ -59,3 +59,31 @@ Run mode: **autonomous** (`autonomy_level: fully-autonomous` honored from the un
 **Substrate observation:** This is the **second** cycle running the Spec-first (mm) pattern (first was Sales Standards POC, cycle #13). Cycle #13 produced a 20-line pointer-stub scope.md; this one is denser (~120 lines) because the upstream spec has more architectural surface area (three subsystems, plugin model, factory pipeline) that the scope artifact needs to reflect for downstream /prd discipline. **Pattern refinement:** spec-first scope-stub size scales with subsystem count, not arbitrary line targets.
 
 **Friction / session logging:** still not invoked (same reason as /onboard — internal VC infra).
+
+## /prd
+
+Run mode: **autonomous** (carrying forward the `autonomy_level: fully-autonomous` opt-in).
+
+**What changed vs scope.md:** scope was the project-shape pointer-stub; PRD is the user-stories + ACs + prioritization layer. Per the SKILL: "The PRD should feel significantly more substantial than the scope doc." This one does — six epics (Onboarding, Recording, Editing, Playback, Library, Distribution) × ~5 stories each × 3-5 acceptance criteria = the v1 build's full behavior surface.
+
+**No deepening rounds** — confirmed pattern (8 of 9 prior cycles). The spec already did the brain-dump and the deepening; PRD's job here was structural conversion to the stories+ACs format that downstream commands expect.
+
+**Surprising "what if" questions surfaced:**
+- Cuts inside existing gate events — surfaced as an explicit "must remove gate first" UX rule.
+- HUD overlapping the Roblox window — explicit rule that HUD-position clicks NEVER appear in the recorded input log; HUD remembers position across sessions.
+- Manually-edited factory-patchable macros — explicit "your local edits will be overwritten — keep yours, install update, or save yours as a new macro?" prompt.
+- Daylight-savings transitions mid-run — explicit timezone interpretation per manifest.
+- Engine asserting `NSWorkspace.frontmostApplication` is Roblox before EVERY synthesis call (not just on entry).
+- Reference image generated at different resolution than playback — explicit warning + scaling.
+
+These are the kind of edge cases the SKILL flags as the "PRD is where depth happens" payoff.
+
+**Scope guard:** every "what we'd add with more time" entry is from spec § 11 + new ones surfaced during PRD authoring. Nothing snuck into v1 that wasn't already implied.
+
+**Active shaping:** autonomous flow per the contract; substantive shaping happened upstream during brainstorm + spec.
+
+**One open question flagged as needing answer before /build:** the clan-battle seed macro requires Estevan to brief the agent on PS99 clan-battle mechanics. Tracked in PRD § Open Questions; should land as a /build-time clarification rather than a /spec-time blocker.
+
+**Length check:** PRD is ~300+ lines vs scope's ~120 — meets the SKILL's "significantly more substantial" expectation. Pattern: PRD-to-scope length ratio scales with subsystem count + behavior surface (six epics worth of behaviors > a single subsystem's pointer-stub).
+
+**Friction / session logging:** still not invoked (same reason as prior commands).
