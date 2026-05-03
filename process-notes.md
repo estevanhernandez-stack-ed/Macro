@@ -87,3 +87,28 @@ These are the kind of edge cases the SKILL flags as the "PRD is where depth happ
 **Length check:** PRD is ~300+ lines vs scope's ~120 — meets the SKILL's "significantly more substantial" expectation. Pattern: PRD-to-scope length ratio scales with subsystem count + behavior surface (six epics worth of behaviors > a single subsystem's pointer-stub).
 
 **Friction / session logging:** still not invoked (same reason as prior commands).
+
+## /spec
+
+Run mode: **autonomous** (carrying forward).
+
+**Stack decisions:** all carried from the design spec. Swift 5.9+ / SwiftUI / native Apple APIs only (ScreenCaptureKit, Quartz Event Services, AVFoundation, NSAccessibility); Sparkle 2.x for auto-update; Bun for the factory pipeline (Subsystem B, later cycle); schema codegen via TBD-tool from `schema/macro.schema.yaml`. No surprises — these were already locked during brainstorm.
+
+**Builder confidence vs uncertainty:** confident about everything (the brainstorm + spec already adjudicated the choices). The three remaining "open questions" are tactical, not strategic: codegen tool choice (Quicktype vs hand-written vs Swift macros), image-similarity algorithm (Vision template match vs OpenCV ORB vs perceptual hash), Sparkle EdDSA key generation timing.
+
+**Deepening-round payoff (in autonomous mode):** the architecture self-review surfaced three non-obvious edge cases that need /checklist items:
+1. **Binding-mismatch UX** — the spec asserts `requires.bindings` is checked pre-flight, but doesn't specify the failure path. /checklist should add a UX item.
+2. **Scaled-coord clamping** — resolution-scaling can produce coords slightly outside the window content rect; clamping must happen post-scale, pre-synth.
+3. **Factory-patch local-edit detection** — the PRD AC says "warn if user has manually edited a factory-patchable macro," but the spec doesn't define HOW edits are detected. /checklist should add: store original-bundle hash at install time, compare before auto-update.
+
+These are the kind of "what if" findings deepening rounds produce. Recording them as Open Issues in spec.md so /checklist consumes them.
+
+**Subsystem-config pattern-match:** N/A — macRo is greenfield, not extending existing infra.
+
+**Web research:** skipped in autonomous mode. The architectural choices reference current Apple APIs (ScreenCaptureKit is post-2023), Sparkle 2.x is current, EdDSA is the standard Sparkle 2.x signature scheme. Validated during brainstorm.
+
+**Active shaping:** autonomous flow per the contract.
+
+**Pattern note:** /spec produces ~250+ lines because it carries the heading-address structure /checklist consumes (every architectural component gets its own subheading). Bodies are pointer-stubbed to design spec, but the structural skeleton is faithful — that's the (mm) pattern's compression discipline at work.
+
+**Friction / session logging:** still not invoked.
