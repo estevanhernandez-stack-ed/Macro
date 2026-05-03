@@ -41,3 +41,21 @@ No `(default — confirm on next run)` tags this run — every value is sourced 
 **Tenant boundary:** This is a 626Labs project, NOT a Marcus tenant project. `mcp__626Labs__*` calls are appropriate when the Dashboard MCP is connected. Currently the Dashboard MCP is **not connected** in the running session — the bind step (`mcp__626Labs__manage_projects findByRepo`) is deferred until the MCP server reconnects. CLAUDE.md describes the eventual state.
 
 **Friction / session logging:** the VC session-logger and friction-logger machinery were not invoked this run (the plugin data dir at `~/.claude/plugins/data/vibe-cartographer/` doesn't yet exist on this machine; bootstrapping it is internal-VC-machinery work that lives outside the scope of /onboard's user-facing flow). Future cycles on this machine will inherit the missing-infra cleanly when those skills run for the first time.
+
+## /scope
+
+Run mode: **autonomous** (`autonomy_level: fully-autonomous` honored from the unified profile + the explicit opt-in at /onboard's pacing gate carried forward). The /scope SKILL doesn't have an explicit autonomous-mode branch like /onboard's, but the (mm) Spec-first cycle pattern from cycle #13 is documented and validated: when the spec is dense and validated, /scope compresses to a pointer-stub.
+
+**Idea evolution:** none in this run. The idea was already fully formed via the upstream brainstorm + spec authoring + keystone work. /scope's job here was to produce the canonical scope artifact in the shape downstream commands expect, not to re-discover the project.
+
+**Pushback / steering:** none in this run (autonomous flow). Real pushback during the brainstorm produced the design unlocks (Este flagged player movement → got its own MOVE lane in v2 mockup; flagged "accuracy-first not speed" → reframed factory promise; flagged community-authored game plugins → plugin loader gets URL-installable from day one). Those are recorded in the spec, not here.
+
+**References that resonated:** Psycho Hatcher's full Modes/ catalog (auto-fuse-pets added as 5th seed; multi-instance + webhook + market-sniping named in out-of-scope). iMovie/FCP visual reference for the editor metaphor.
+
+**Deepening rounds:** zero. Confirmed pattern from `plugins.vibe-cartographer.deepening_round_habits`: zero deepening rounds when vision is formed (8 of 9 prior cycles). The spec is the deepening rounds, retroactively.
+
+**Active shaping:** drove the direction in upstream brainstorm; autonomous in /scope itself per the contract.
+
+**Substrate observation:** This is the **second** cycle running the Spec-first (mm) pattern (first was Sales Standards POC, cycle #13). Cycle #13 produced a 20-line pointer-stub scope.md; this one is denser (~120 lines) because the upstream spec has more architectural surface area (three subsystems, plugin model, factory pipeline) that the scope artifact needs to reflect for downstream /prd discipline. **Pattern refinement:** spec-first scope-stub size scales with subsystem count, not arbitrary line targets.
+
+**Friction / session logging:** still not invoked (same reason as /onboard — internal VC infra).
