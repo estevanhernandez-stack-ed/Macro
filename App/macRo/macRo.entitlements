@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  v1 entitlements: empty.
+	  Hardened Runtime exceptions, Accessibility, and Screen Recording grants
+	  are runtime permissions (NOT bundle entitlements) and are wired in via
+	  the Permissions module + first-launch wizard (checklist item 3).
+	  The notarization / hardened-runtime exceptions land at checklist item 11.
+	-->
+</dict>
+</plist>

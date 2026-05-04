@@ -1,0 +1,72 @@
+# XcodeGen source-of-truth for the macRo Mac app.
+# Regenerate the .xcodeproj after editing this file:
+#
+#   cd App && xcodegen generate
+#
+# The generated macRo.xcodeproj/ is gitignored. This file is the source of truth.
+
+name: macRo
+options:
+  bundleIdPrefix: com.626labs
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+  groupSortPosition: top
+  developmentLanguage: en
+
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+    ARCHS: "arm64 x86_64"
+    ONLY_ACTIVE_ARCH: NO
+    ENABLE_HARDENED_RUNTIME: YES
+    CLANG_ENABLE_MODULES: YES
+    SWIFT_TREAT_WARNINGS_AS_ERRORS: NO
+    GCC_TREAT_WARNINGS_AS_ERRORS: NO
+    DEAD_CODE_STRIPPING: YES
+    CODE_SIGN_STYLE: Automatic
+    # Signing identity is intentionally blank in v1 — set per-developer locally,
+    # set via GitHub-hosted secrets in CI for release builds.
+    DEVELOPMENT_TEAM: ""
+
+targets:
+  macRo:
+    type: application
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources:
+      - path: macRo
+        excludes:
+          - "Info.plist"
+          - "macRo.entitlements"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.626labs.macRo
+        PRODUCT_NAME: macRo
+        MARKETING_VERSION: "0.0.1"
+        CURRENT_PROJECT_VERSION: "1"
+        INFOPLIST_FILE: macRo/Info.plist
+        CODE_SIGN_ENTITLEMENTS: macRo/macRo.entitlements
+        ENABLE_APP_SANDBOX: NO
+        ASSETCATALOG_COMPILER_APPICON_NAME: ""
+        COMBINE_HIDPI_IMAGES: YES
+        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../Frameworks"
+        SWIFT_EMIT_LOC_STRINGS: YES
+
+schemes:
+  macRo:
+    build:
+      targets:
+        macRo: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release

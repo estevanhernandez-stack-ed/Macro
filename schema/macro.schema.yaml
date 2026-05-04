@@ -1,0 +1,512 @@
+# =============================================================================
+# macRo .macro bundle schema — v1
+# =============================================================================
+# Single source of truth for the .macro bundle format. Both Swift `MacroFormat`
+# and TS schema types are codegened from this file (codegen pipeline lands at
+# checklist item 2). Hand-editing the generated types is a bug — change this
+# schema and regenerate.
+#
+# Spec ref: docs/superpowers/specs/2026-05-03-macro-mac-app-design.md § 4
+# CLAUDE.md guardrail: do NOT break the schema-as-single-source-of-truth contract.
+#
+# Format: JSON-Schema-flavored shape (`type`, `properties`, `required`, etc.) but
+# expressed as YAML for editability. Comments and anchors are intentional.
+#
+# A .macro bundle is a directory:
+#
+#   <macro-id>.macro/
+#     manifest.yaml           # this schema's `Manifest` definition
+#     timeline.yaml           # this schema's `Timeline` definition
+#     gates/*.png             # PNG snapshots referenced by gate events
+#     preview.mp4             # OPTIONAL low-res ~5MB preview for library browse
+# =============================================================================
+
+$schema: "https://json-schema.org/draft/2020-12/schema"
+$id: "https://macros.626labs.com/schema/macro/v1.yaml"
+title: "macRo .macro bundle (v1)"
+description: |
+  The `.macro` bundle is the contract that holds the three macRo subsystems
+  together (Mac app, factory pipeline, library). schemaVersion is the
+  load-bearing forward/back-compat axis — bump it via a logged decision in the
+  626Labs Dashboard.
+type: object
+
+# Top-level note — this schema describes the LOGICAL shape of a bundle. On disk
+# the bundle is a folder containing manifest.yaml + timeline.yaml + gates/*.png
+# + optional preview.mp4. The `Manifest` and `Timeline` definitions below
+# correspond 1:1 to those two files.
+
+properties:
+  manifest:
+    $ref: "#/$defs/Manifest"
+  timeline:
+    $ref: "#/$defs/Timeline"
+required: [manifest, timeline]
+additionalProperties: false
+
+# =============================================================================
+# Definitions
+# =============================================================================
+$defs:
+
+  # ---------------------------------------------------------------------------
+  # manifest.yaml shape
+  # ---------------------------------------------------------------------------
+  Manifest:
+    type: object
+    description: |
+      Metadata for the macro: identity, the game it targets, runtime knobs, the
+      factory's opt-in flag, and the audit trail of factory patches.
+    required:
+      - id
+      - name
+      - schemaVersion
+      - version
+      - factoryPatchable
+    additionalProperties: false
+    properties:
+
+      id:
+        type: string
+        description: |
+          Stable, slug-form identifier. Convention: `<game-slug>-<purpose>-v<n>`
+          (e.g., `ps99-auto-hatch-v1`). Used as the file system name and the
+          factory's addressing key.
+        pattern: "^[a-z0-9][a-z0-9-]*[a-z0-9]$"
+
+      name:
+        type: string
+        description: Human-readable display name shown in the Library panel.
+
+      description:
+        type: string
+        description: One-paragraph human-readable summary.
+
+      author:
+        type: string
+        description: Author handle or display name. Free-form.
+
+      version:
+        type: string
+        description: SemVer string (`MAJOR.MINOR.PATCH`).
+        pattern: "^[0-9]+\\.[0-9]+\\.[0-9]+(-[A-Za-z0-9.-]+)?$"
+
+      schemaVersion:
+        type: integer
+        description: |
+          Schema version this bundle was authored against. Engine refuses to
+          play unknown schemaVersions (forward-compat is the factory's job;
+          back-compat is the engine's promise).
+        minimum: 1
+        maximum: 1
+
+      factoryPatchable:
+        type: boolean
+        description: |
+          Opt-in flag — if true, the factory may auto-patch this macro when the
+          target game updates. If false, the factory ignores it entirely. v1
+          contract; do not break.
+
+      estimatedRuntime:
+        type: string
+        description: |
+          Either `"indefinite"` for long-running grinds or an `HH:MM:SS`
+          duration string for finite macros.
+
+      recordedFrameRate:
+        type: number
+        description: Roblox frame rate observed at recording time (used for scaling).
+        minimum: 1
+        maximum: 480
+
+      maxRuntimeHours:
+        type: number
+        description: |
+          Optional cap on continuous run time. Engine aborts after this many
+          hours. Default: unlimited.
+        minimum: 0
+
+      game:
+        $ref: "#/$defs/GameTag"
+
+      target:
+        $ref: "#/$defs/Target"
+
+      requires:
+        $ref: "#/$defs/Requires"
+
+      schedule:
+        type: array
+        description: Time windows during which the engine is allowed to run.
+        items:
+          $ref: "#/$defs/ScheduleWindow"
+
+      patchHistory:
+        type: array
+        description: |
+          Audit trail. The factory appends entries when it patches this macro;
+          users see "last patched by the factory on …" in the Library panel.
+        items:
+          $ref: "#/$defs/PatchHistoryEntry"
+
+  # ---------------------------------------------------------------------------
+  # timeline.yaml shape
+  # ---------------------------------------------------------------------------
+  Timeline:
+    type: object
+    description: |
+      The ordered event stream + interrupt-driven control flow. Engine walks
+      `events` linearly, polling `stopOn` triggers in parallel. Sub-macros under
+      `subs` are reachable via `invokeSub` events or `sub:<name>` actions.
+    required: [events]
+    additionalProperties: false
+    properties:
+
+      events:
+        type: array
+        description: |
+          Timeline events. `t` is absolute time in seconds from start (NOT delta
+          from previous event) — easier diffs, easier scrubbing, easier loop
+          targeting per design spec § 4.
+        items:
+          $ref: "#/$defs/TimelineEvent"
+
+      stopOn:
+        type: array
+        description: |
+          Interrupt triggers. Polled every 500ms in parallel with the run loop.
+          When any matches, the engine takes the configured action.
+        items:
+          $ref: "#/$defs/StopOnTrigger"
+
+      subs:
+        type: object
+        description: |
+          Named sub-macros. Keys are sub identifiers (e.g., `cleanup-inventory`,
+          `reconnect`); values are sub bodies. Subs are not directly invocable
+          from outside this file — they're called via `invokeSub` events or
+          `stopOn` actions of the form `sub:<name>`.
+        additionalProperties:
+          $ref: "#/$defs/SubMacro"
+
+  # ---------------------------------------------------------------------------
+  # Game / target / bindings
+  # ---------------------------------------------------------------------------
+  GameTag:
+    type: object
+    description: |
+      Game identity tag. `placeId` is the Roblox place ID; `versionFingerprint`
+      is the factory's signal for "what game state was this recorded against."
+    additionalProperties: false
+    properties:
+      placeId:
+        type: integer
+        description: Roblox place ID. Optional — untagged macros omit this.
+      name:
+        type: string
+        description: Display name (e.g., "Pet Simulator 99").
+      versionDetectedAt:
+        type: string
+        format: date-time
+        description: ISO-8601 timestamp of when the version was detected.
+      versionFingerprint:
+        type: string
+        description: |
+          Free-form factory-readable signal (a hash of UI screenshots, a
+          recognized HTML banner, etc.). Engine doesn't read it; factory does.
+
+  Target:
+    type: object
+    description: |
+      Where input synthesis lands. The window-targeting fields populate from
+      the chosen game plugin at recording time — users never type selectors.
+    additionalProperties: false
+    properties:
+      windowClass:
+        type: array
+        description: |
+          Fallback NSAccessibility class array. Spec § 11 risk mitigation:
+          Roblox can change classes; an array means we can fall back without
+          re-recording every macro.
+        items:
+          type: string
+        minItems: 1
+      windowTitleMatch:
+        type: string
+        description: Regex matched against the target window's title.
+      coordinateSpace:
+        type: string
+        enum: [window, screen]
+        description: |
+          v1: `window` is the only supported value (window-relative coords).
+          `screen` is reserved for v2.
+      recordedResolution:
+        type: object
+        description: The Roblox window's resolution at recording time.
+        required: [width, height]
+        additionalProperties: false
+        properties:
+          width:
+            type: integer
+            minimum: 1
+          height:
+            type: integer
+            minimum: 1
+      resolutionPolicy:
+        type: string
+        enum: [scale, anchor-to-window, image-anchored]
+        description: |
+          How the engine handles resolution mismatches at playback time.
+          - `scale` — proportional scaling of click coords (default; safe).
+          - `anchor-to-window` — coords used as-is, window-relative
+            (only safe at recordedResolution).
+          - `image-anchored` — coords recomputed from the most recent gate's
+            image-search result.
+
+  Requires:
+    type: object
+    description: User-binding expectations (Roblox keybind sanity check).
+    additionalProperties: false
+    properties:
+      bindings:
+        type: array
+        description: |
+          List of (action, expected-key) pairs. Pre-flight prompts the user
+          once per macro to confirm bindings match.
+        items:
+          type: object
+          required: [action, expected]
+          additionalProperties: false
+          properties:
+            action:
+              type: string
+              description: Action label (e.g., "interact", "menu").
+            expected:
+              type: string
+              description: Expected key (e.g., "E", "Tab").
+
+  ScheduleWindow:
+    type: object
+    description: A single time window during which the macro may run.
+    required: [between]
+    additionalProperties: false
+    properties:
+      between:
+        type: object
+        required: [from, to]
+        additionalProperties: false
+        properties:
+          from:
+            type: string
+            description: 24-hour HH:MM start time.
+            pattern: "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+          to:
+            type: string
+            description: 24-hour HH:MM end time.
+            pattern: "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+          timezone:
+            type: string
+            description: |
+              `local` (the user's local zone) or an IANA timezone name
+              (e.g., `America/Chicago`). Defaults to `local`.
+
+  PatchHistoryEntry:
+    type: object
+    description: One factory-patch event in the audit trail.
+    required: [date, fromVersion, toVersion, patchedBy]
+    additionalProperties: false
+    properties:
+      date:
+        type: string
+        format: date-time
+      fromVersion:
+        type: string
+      toVersion:
+        type: string
+      patchedBy:
+        type: string
+        description: |
+          Identifier for the patcher (e.g., `factory@626labs.com` or a human
+          author handle for manual patches).
+      notes:
+        type: string
+
+  # ---------------------------------------------------------------------------
+  # Timeline events — discriminated union on `kind`
+  # ---------------------------------------------------------------------------
+  TimelineEvent:
+    type: object
+    description: |
+      Discriminated on `kind`. Each kind has its own required-field set
+      enforced via `oneOf` below.
+    required: [t, kind]
+    properties:
+      t:
+        type: number
+        description: Absolute time in seconds from macro start.
+        minimum: 0
+      kind:
+        type: string
+        enum:
+          - keyDown
+          - keyUp
+          - keyPress
+          - click
+          - cameraDelta
+          - gate
+          - loop
+          - invokeSub
+
+    oneOf:
+      # keyDown / keyUp
+      - properties:
+          kind: { const: keyDown }
+          key: { type: string }
+        required: [kind, key]
+      - properties:
+          kind: { const: keyUp }
+          key: { type: string }
+        required: [kind, key]
+
+      # keyPress — convenience for "down then up at minimal interval"
+      - properties:
+          kind: { const: keyPress }
+          key: { type: string }
+        required: [kind, key]
+
+      # click
+      - properties:
+          kind: { const: click }
+          x: { type: number, description: "Window-relative x (per target.coordinateSpace)" }
+          y: { type: number, description: "Window-relative y" }
+          button:
+            type: string
+            enum: [left, right, middle]
+          jitterMs:
+            type: number
+            description: "Optional ±ms randomization for humanized timing."
+            minimum: 0
+        required: [kind, x, y, button]
+
+      # cameraDelta — relative camera-look delta over `duration` seconds
+      - properties:
+          kind: { const: cameraDelta }
+          dx: { type: number }
+          dy: { type: number }
+          duration:
+            type: number
+            description: "Seconds over which to apply the delta."
+            minimum: 0
+        required: [kind, dx, dy, duration]
+
+      # gate — the load-bearing one
+      - properties:
+          kind: { const: gate }
+          gateKind:
+            type: string
+            enum: [pos, img]
+            description: |
+              `pos` — verify position via image-of-environment (looser ~85%
+              similarity). `img` — verify UI state via image-of-UI (tighter
+              ~95% similarity).
+          ref:
+            type: string
+            description: |
+              Image reference ID (e.g., `pos-fishing-spot`). Resolves to
+              `gates/<gateKind>-<ref>.png` on disk. Spec § 4 — refs by ID,
+              not path, so the factory can swap PNGs without touching
+              timeline.yaml.
+          retries:
+            type: integer
+            description: How many times to retry before taking onFail.
+            minimum: 0
+          timeout:
+            type: number
+            description: Seconds to wait per retry attempt.
+            minimum: 0
+          onFail:
+            description: |
+              Action on retries-exhausted. Either a literal `abort` /
+              `continue`, or `sub:<name>` to invoke a named sub-macro.
+            oneOf:
+              - type: string
+                enum: [abort, continue]
+              - type: string
+                pattern: "^sub:[a-z0-9][a-z0-9-]*[a-z0-9]$"
+        required: [kind, gateKind, ref]
+
+      # loop — jump playhead back to a target time, with runaway guard
+      - properties:
+          kind: { const: loop }
+          label:
+            type: string
+            description: |
+              Label for runaway-detection accounting. Engine aborts when any
+              label's visit count exceeds the runaway threshold.
+          target:
+            type: number
+            description: |
+              Absolute time (seconds) to jump the playhead to. Typically
+              points at an earlier event's `t`.
+            minimum: 0
+        required: [kind, label, target]
+
+      # invokeSub — push current position, jump into a named sub
+      - properties:
+          kind: { const: invokeSub }
+          name:
+            type: string
+            description: Sub-macro name (must exist as a key under timeline.subs).
+        required: [kind, name]
+
+  # ---------------------------------------------------------------------------
+  # Stop conditions (interrupts)
+  # ---------------------------------------------------------------------------
+  StopOnTrigger:
+    type: object
+    description: |
+      An interrupt trigger polled every 500ms in parallel with the run loop.
+      When `when` matches, the engine takes `action`.
+    required: [when, action]
+    additionalProperties: false
+    properties:
+      when:
+        type: object
+        description: "Match condition. v1: gate-image-detection only."
+        required: [gateKind, ref]
+        additionalProperties: false
+        properties:
+          gateKind:
+            type: string
+            enum: [pos, img]
+          ref:
+            type: string
+      action:
+        description: |
+          Either a literal `pause` / `exit`, or `sub:<name>` to run a sub
+          and resume main.
+        oneOf:
+          - type: string
+            enum: [pause, exit]
+          - type: string
+            pattern: "^sub:[a-z0-9][a-z0-9-]*[a-z0-9]$"
+      message:
+        type: string
+        description: Optional message shown in the Mac notification on `pause`.
+
+  # ---------------------------------------------------------------------------
+  # Sub-macro
+  # ---------------------------------------------------------------------------
+  SubMacro:
+    type: object
+    description: |
+      A named sub-macro body. `events` follows the same shape as the top-level
+      timeline `events`, but cannot directly self-invoke. Indirect cycles are
+      allowed (the engine has a runaway-loop guard) but are wasteful.
+    required: [events]
+    additionalProperties: false
+    properties:
+      events:
+        type: array
+        items:
+          $ref: "#/$defs/TimelineEvent"

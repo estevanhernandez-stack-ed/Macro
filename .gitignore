@@ -11,6 +11,9 @@ xcuserdata/
 *.xcworkspace/xcuserdata/
 *.xcodeproj/xcuserdata/
 
+# XcodeGen-generated project (source of truth is App/project.yml)
+App/macRo.xcodeproj/
+
 # Swift Package Manager
 .build/
 .swiftpm/
