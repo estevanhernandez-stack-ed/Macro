@@ -504,7 +504,7 @@ public enum TimelineEvent: Codable, Sendable, Equatable, Hashable {
         /// Sub-macro invocation — `sub:<name>` form. `name` is the bare identifier.
         case subInvocation(name: String)
 
-        public init(from decoder: Decoder) throws {
+        public init(from decoder: Swift.Decoder) throws {
             let single = try decoder.singleValueContainer()
             let raw = try single.decode(String.self)
             if raw.hasPrefix("sub:") {
@@ -522,7 +522,7 @@ public enum TimelineEvent: Codable, Sendable, Equatable, Hashable {
             )
         }
 
-        public func encode(to encoder: Encoder) throws {
+        public func encode(to encoder: Swift.Encoder) throws {
             var single = encoder.singleValueContainer()
             switch self {
             case .literal(let lit):
@@ -557,7 +557,7 @@ public enum TimelineEvent: Codable, Sendable, Equatable, Hashable {
         case invokeSub = "invokeSub"
     }
 
-    public init(from decoder: Decoder) throws {
+    public init(from decoder: Swift.Decoder) throws {
         let disc = try decoder.container(keyedBy: DiscriminatorKey.self)
         let kind = try disc.decode(KindValue.self, forKey: .kind)
         switch kind {
@@ -580,7 +580,7 @@ public enum TimelineEvent: Codable, Sendable, Equatable, Hashable {
         }
     }
 
-    public func encode(to encoder: Encoder) throws {
+    public func encode(to encoder: Swift.Encoder) throws {
         switch self {
         case .keyDown(let payload):
             try payload.encode(to: encoder)
@@ -653,7 +653,7 @@ public struct StopOnTrigger: Codable, Sendable, Equatable, Hashable {
         /// Sub-macro invocation — `sub:<name>` form. `name` is the bare identifier.
         case subInvocation(name: String)
 
-        public init(from decoder: Decoder) throws {
+        public init(from decoder: Swift.Decoder) throws {
             let single = try decoder.singleValueContainer()
             let raw = try single.decode(String.self)
             if raw.hasPrefix("sub:") {
@@ -671,7 +671,7 @@ public struct StopOnTrigger: Codable, Sendable, Equatable, Hashable {
             )
         }
 
-        public func encode(to encoder: Encoder) throws {
+        public func encode(to encoder: Swift.Encoder) throws {
             var single = encoder.singleValueContainer()
             switch self {
             case .literal(let lit):

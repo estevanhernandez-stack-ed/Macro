@@ -337,7 +337,11 @@ function emitDiscriminatedEnum(typeName: string, obj: SchemaObject): string {
     // the payload struct from the same decoder. The payload's default Codable
     // reads its own keys at the same level (and the extra `kind` key is
     // simply ignored by the payload's decoder).
-    lines.push(`    public init(from decoder: Decoder) throws {`);
+    // Type names are FULLY QUALIFIED (`Swift.Decoder` / `Swift.Encoder`) so
+    // a consumer module that defines its own `Encoder` or `Decoder` type
+    // (e.g., AVFoundation `Encoder` wrapper) doesn't shadow the stdlib
+    // protocol and break codegen-output compilation.
+    lines.push(`    public init(from decoder: Swift.Decoder) throws {`);
     lines.push(`        let disc = try decoder.container(keyedBy: DiscriminatorKey.self)`);
     lines.push(`        let kind = try disc.decode(KindValue.self, forKey: .kind)`);
     lines.push(`        switch kind {`);
@@ -353,7 +357,7 @@ function emitDiscriminatedEnum(typeName: string, obj: SchemaObject): string {
     // for its own fields), then re-open a keyed container with the
     // discriminator key and write `kind`. Multiple keyed-container writes
     // on the same encoder merge into the same underlying dictionary.
-    lines.push(`    public func encode(to encoder: Encoder) throws {`);
+    lines.push(`    public func encode(to encoder: Swift.Encoder) throws {`);
     lines.push(`        switch self {`);
     for (const b of branches) {
         lines.push(`        case .${b.caseName}(let payload):`);
@@ -602,7 +606,9 @@ function emitPolymorphicStringUnion(
     lines.push(`    /// Sub-macro invocation — \`sub:<name>\` form. \`name\` is the bare identifier.`);
     lines.push(`    case subInvocation(name: String)`);
     lines.push(``);
-    lines.push(`    public init(from decoder: Decoder) throws {`);
+    // Fully qualified `Swift.Decoder` / `Swift.Encoder` so consumer modules
+    // can define their own `Encoder`/`Decoder` types without shadowing.
+    lines.push(`    public init(from decoder: Swift.Decoder) throws {`);
     lines.push(`        let single = try decoder.singleValueContainer()`);
     lines.push(`        let raw = try single.decode(String.self)`);
     lines.push(`        if raw.hasPrefix("sub:") {`);
@@ -620,7 +626,7 @@ function emitPolymorphicStringUnion(
     lines.push(`        )`);
     lines.push(`    }`);
     lines.push(``);
-    lines.push(`    public func encode(to encoder: Encoder) throws {`);
+    lines.push(`    public func encode(to encoder: Swift.Encoder) throws {`);
     lines.push(`        var single = encoder.singleValueContainer()`);
     lines.push(`        switch self {`);
     lines.push(`        case .literal(let lit):`);
