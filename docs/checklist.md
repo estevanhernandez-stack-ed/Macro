@@ -22,11 +22,12 @@ Item 6 (hand-authored test bundles) is a deliberate verification beat; it bridge
 
 ## Checklist
 
-- [ ] **1. Repo skeleton — Xcode project, app shell, `MacRoTheme` stub, schema source-of-truth**
+- [x] **1. Repo skeleton — Xcode project, app shell, `MacRoTheme` stub, schema source-of-truth**
   Spec ref: `spec.md > Stack` + `spec.md > File Structure`
   What to build: Create `App/macRo.xcodeproj` (macOS 14+ deployment target, SwiftUI, Universal binary). `App/macRo/App.swift` with `@main` and basic `AppDelegate`. `App/macRo/Info.plist` declaring `LSItemContentTypes` for the `.macro` bundle (UTI: `com.626labs.macro`, conforms to `public.directory`). Empty `App/macRo/Theme/MacRoTheme.swift` stub with placeholder Color/Font extensions referencing 626Labs tokens (full mapping comes via `626labs-design` skill at first SwiftUI authoring beat). `schema/macro.schema.yaml` with the v1 schema derived from spec § 4 (manifest fields, timeline event kinds, gates, factoryPatchable, target, requires, schedule, patchHistory, stopOn, subs).
   Acceptance: Xcode opens project. `cmd+B` builds. App launches to a blank SwiftUI window titled "macRo". `MacroFormat` import resolves. `python3 -c "import yaml; yaml.safe_load(open('schema/macro.schema.yaml'))"` exits 0.
   Verify: `xed App/macRo.xcodeproj` opens Xcode. Build succeeds. Run shows blank window. Schema YAML parses.
+  **Status:** structurally complete @ `256922a`. Build verification owed-to-Estevan — **Xcode.app not installed on this machine** (only Command Line Tools). `swiftc -parse` syntax-check passed; `xcodebuild` requires full Xcode. Install Xcode.app, then run `cd App && xcodebuild -project macRo.xcodeproj -scheme macRo build` to close the loop.
 
 - [ ] **2. Schema codegen pipeline + `MacroFormat` module**
   Spec ref: `spec.md > Schema source of truth` + `spec.md > MacroFormat`
