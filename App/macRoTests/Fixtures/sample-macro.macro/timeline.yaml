@@ -1,0 +1,35 @@
+events:
+  - kind: keyDown
+    t: 0.0
+    key: W
+  - kind: click
+    t: 0.5
+    x: 960
+    y: 540
+    button: left
+  - kind: gate
+    t: 1.0
+    gateKind: img
+    ref: test
+    retries: 3
+    timeout: 30
+    onFail: continue
+  - kind: invokeSub
+    t: 1.5
+    name: cleanup
+  - kind: loop
+    t: 2.0
+    label: main-loop
+    target: 0.0
+stopOn:
+  - when:
+      gateKind: img
+      ref: test
+    action: pause
+    message: paused on test gate
+subs:
+  cleanup:
+    events:
+      - kind: keyPress
+        t: 0.0
+        key: Escape

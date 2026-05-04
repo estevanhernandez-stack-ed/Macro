@@ -15,12 +15,19 @@ options:
   groupSortPosition: top
   developmentLanguage: en
 
+# Swift Package Manager dependencies. Yams powers MacroBundle's YAML
+# load/save against the Codable types in App/macRo/Schema/MacroFormat.swift.
+# Pinned major-minor; minor bumps land via a logged decision.
+packages:
+  Yams:
+    url: https://github.com/jpsim/Yams.git
+    from: "5.1.0"
+
 settings:
   base:
     SWIFT_VERSION: "5.9"
     MACOSX_DEPLOYMENT_TARGET: "14.0"
     ARCHS: "arm64 x86_64"
-    ONLY_ACTIVE_ARCH: NO
     ENABLE_HARDENED_RUNTIME: YES
     CLANG_ENABLE_MODULES: YES
     SWIFT_TREAT_WARNINGS_AS_ERRORS: NO
@@ -30,6 +37,14 @@ settings:
     # Signing identity is intentionally blank in v1 — set per-developer locally,
     # set via GitHub-hosted secrets in CI for release builds.
     DEVELOPMENT_TEAM: ""
+  configs:
+    # Debug builds host-only — keeps SPM dependency builds (e.g., Yams)
+    # tractable on Intel hosts where Universal SwiftPM rebuilds choke.
+    # Release stays Universal so the notarized DMG lands as a fat binary.
+    Debug:
+      ONLY_ACTIVE_ARCH: YES
+    Release:
+      ONLY_ACTIVE_ARCH: NO
 
 targets:
   macRo:
@@ -41,6 +56,8 @@ targets:
         excludes:
           - "Info.plist"
           - "macRo.entitlements"
+    dependencies:
+      - package: Yams
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.626labs.macRo
@@ -55,15 +72,34 @@ targets:
         LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../Frameworks"
         SWIFT_EMIT_LOC_STRINGS: YES
 
+  macRoTests:
+    type: bundle.unit-test
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources:
+      - path: macRoTests
+    dependencies:
+      - target: macRo
+      - package: Yams
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.626labs.macRoTests
+        GENERATE_INFOPLIST_FILE: YES
+        BUNDLE_LOADER: "$(TEST_HOST)"
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/macRo.app/Contents/MacOS/macRo"
+
 schemes:
   macRo:
     build:
       targets:
         macRo: all
+        macRoTests: [test]
     run:
       config: Debug
     test:
       config: Debug
+      targets:
+        - macRoTests
     profile:
       config: Release
     analyze:

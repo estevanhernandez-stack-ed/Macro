@@ -1,0 +1,17 @@
+id: sample-fixture-v1
+name: Sample fixture
+description: Tiny round-trip fixture for MacroBundle tests.
+author: macRo tests
+version: 0.1.0
+schemaVersion: 1
+factoryPatchable: false
+recordedFrameRate: 60
+target:
+  windowClass:
+    - RobloxWindow
+  windowTitleMatch: ^Roblox$
+  coordinateSpace: window
+  recordedResolution:
+    width: 1920
+    height: 1080
+  resolutionPolicy: scale
