@@ -40,11 +40,13 @@ When designing new screens, invoke the `626labs-design` skill rather than re-der
 | `.gitignore` | Excludes `.superpowers/` (brainstorm artifacts), `.claude/settings.local.json`, build artifacts. |
 | `.claude/` | Claude Code project config. `settings.local.json` is local-only; future `agents/`, `rules/`, `hooks/` are committed. |
 | `.superpowers/` *(gitignored)* | Brainstorm session artifacts (mockups, visual companion screens). Useful local context; never commit. |
-| `schema/macro.schema.yaml` *(planned)* | Single source of truth for the `.macro` bundle schema. Swift `MacroFormat` + TS schema types codegen from this. |
-| `App/` *(planned)* | Swift / SwiftUI app source. Layered: native services → domain (Recorder, Engine, MacroBundle, LibraryStore, Permissions, PluginLoader) → UI. |
+| `schema/macro.schema.yaml` | Single source of truth for the `.macro` bundle schema. Swift `MacroFormat` + (later) TS schema types codegen from this. |
+| `App/` | Swift / SwiftUI app source. XcodeGen project at `App/project.yml` (the `.xcodeproj` is gitignored — regen with `cd App && xcodegen generate`). Layered: native services → domain (Recorder, Engine, MacroBundle, LibraryStore, Permissions, PluginLoader) → UI. `App/macRo/Schema/MacroFormat.swift` is GENERATED — never hand-edit. |
+| `tools/codegen/` | Bun/TypeScript schema codegen. Reads `schema/macro.schema.yaml`, writes `App/macRo/Schema/MacroFormat.swift`. See `tools/codegen/README.md` for mapping decisions. |
 | `games/pet-sim-99/` *(planned)* | First plugin. `plugin.yaml` + `seed-macros/` + README. |
-| `tools/factory/` *(planned)* | TS/Bun factory pipeline. Empty in v1; gets its own spec. |
+| `tools/factory/` *(planned)* | TS/Bun factory pipeline. Empty in v1; gets its own spec. TS schema-types codegen will share `tools/codegen/` infra. |
 | `tools/release/` *(planned)* | Notarization scripts + appcast generation. |
+| `.github/workflows/ci.yml` | Schema-vs-types lockstep guard + Xcode build on macos-latest. Drift fails CI. |
 
 Anything marked *(planned)* is described in the spec but not yet on disk.
 
@@ -72,7 +74,7 @@ Detailed architecture, schema, file format, playback engine semantics, and risk 
 | Inspect the Psycho Hatcher competitive reference | `~/Downloads/Psyhco-Hatcher-main/PH Final Version/` (Modes/, Settings/) |
 | Log a significant decision | `mcp__626Labs__manage_decisions log` (when Dashboard MCP is connected) |
 | Bind this repo to the 626Labs Dashboard | `mcp__626Labs__manage_projects findByRepo` with the remote URL (when MCP is connected) |
-| Generate Swift + TS types from the schema *(planned)* | `bun run codegen` from repo root |
+| Generate Swift types from the schema | `bun run codegen` from repo root (writes `App/macRo/Schema/MacroFormat.swift`). TS factory types regen will share the same script when `tools/factory/` lands. |
 | Run the Mac app dev build *(planned)* | `xed App.xcodeproj` |
 | Run the factory locally *(planned)* | `bun run dev` from `tools/factory/` |
 | Build, sign, and notarize a release *(planned)* | `tools/release/notarize.sh` (or the GitHub Actions release workflow on `v*` tags) |

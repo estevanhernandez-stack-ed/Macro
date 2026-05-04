@@ -1,0 +1,9 @@
+{
+  "name": "macro",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Repo-root scripts for macRo. The Swift app builds via Xcode; this file exists for codegen and (later) the TS factory pipeline.",
+  "scripts": {
+    "codegen": "cd tools/codegen && bun run src/generate-types.ts"
+  }
+}

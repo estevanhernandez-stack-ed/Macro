@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Single concurrent run per branch — cancel older in-progress runs.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  schema-codegen-lockstep:
+    name: Schema -> MacroFormat lockstep
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install codegen deps
+        working-directory: tools/codegen
+        run: bun install --frozen-lockfile
+
+      - name: Run codegen
+        run: bun run codegen
+
+      # Lockstep guard: if regenerated MacroFormat.swift differs from what's
+      # committed, fail loudly. The schema and the Swift output MUST move
+      # together in one commit, always. Spec ref: spec.md > Schema source of
+      # truth ("CI guard: Lockstep").
+      - name: Verify no schema-vs-types drift
+        run: |
+          if ! git diff --exit-code App/macRo/Schema/MacroFormat.swift; then
+            echo "::error::MacroFormat.swift is out of sync with schema/macro.schema.yaml."
+            echo "::error::Run 'bun run codegen' locally and commit the result."
+            exit 1
+          fi
+
+  xcode-build:
+    name: Xcode build
+    runs-on: macos-latest
+    needs: schema-codegen-lockstep
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show toolchain versions
+        run: |
+          xcodebuild -version
+          swift --version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        working-directory: App
+        run: xcodegen generate
+
+      - name: Build (Debug)
+        run: |
+          xcodebuild \
+            -project App/macRo.xcodeproj \
+            -scheme macRo \
+            -configuration Debug \
+            -destination 'platform=macOS' \
+            build \
+            CODE_SIGN_IDENTITY="-" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO

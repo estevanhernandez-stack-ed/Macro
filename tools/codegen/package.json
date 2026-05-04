@@ -1,0 +1,18 @@
+{
+  "name": "@macro/codegen",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Reads schema/macro.schema.yaml and emits App/macRo/Schema/MacroFormat.swift. Single source of truth lives in the YAML; this tool keeps Swift in lockstep.",
+  "scripts": {
+    "generate": "bun run src/generate-types.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "yaml": "^2.5.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.2",
+    "@types/bun": "latest"
+  }
+}

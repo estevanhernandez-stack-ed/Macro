@@ -24,7 +24,9 @@ Package.resolved
 # Brainstorm artifacts (local-only mockups + visual companion sessions)
 .superpowers/
 
-# Bun / Node (for tools/factory later)
+# Bun / Node
+# `bun.lock` (text) IS committed for reproducible installs in CI (frozen-lockfile).
+# `bun.lockb` (legacy binary) and `node_modules/` are not.
 node_modules/
 bun.lockb
 .env
