@@ -23,6 +23,7 @@ import ApplicationServices
 import CoreGraphics
 import Foundation
 import Observation
+import ScreenCaptureKit
 
 /// Live grant state for the two macOS permissions macRo requires.
 /// Inject as `@Environment(Permissions.self)` in SwiftUI; instantiate
@@ -61,13 +62,56 @@ public final class Permissions {
     /// Re-check both grants. Called on init, on app foreground, and any
     /// time the wizard view appears (so a user who flips the toggle in
     /// Settings, then alt-tabs back, sees the live state).
+    ///
+    /// Screen-Recording-cache trap: `CGPreflightScreenCaptureAccess()`
+    /// reads the cached state at process launch. If the user grants the
+    /// permission externally while macRo is running, that API continues
+    /// to return `false` until the process restarts. We work around this
+    /// by falling back to a live `SCShareableContent` probe — the SCK
+    /// API does not consult the cache. Cheap path (cache says `true`)
+    /// stays sync; slow path (cache says `false`) fires a Task that
+    /// reconciles state on main.
     public func refresh() {
         let ax = AXIsProcessTrusted()
-        let scr = CGPreflightScreenCaptureAccess()
-        // SwiftUI's @Observable diff suppresses redundant writes; safe to
-        // assign every refresh.
         if accessibilityGranted != ax { accessibilityGranted = ax }
-        if screenRecordingGranted != scr { screenRecordingGranted = scr }
+
+        let cachedScreenGrant = CGPreflightScreenCaptureAccess()
+        if cachedScreenGrant {
+            if !screenRecordingGranted { screenRecordingGranted = true }
+            return
+        }
+
+        // Cache says "no" — could be the truth, could be a stale post-grant
+        // cache. Probe live via SCShareableContent. The probe throws on
+        // denied; succeeds on granted. It does NOT trigger the system
+        // permission prompt — that's reserved for `CGRequestScreenCaptureAccess()`
+        // in `requestScreenRecording()`.
+        Task { [weak self] in
+            let live = await Permissions.liveScreenRecordingProbe()
+            await MainActor.run {
+                guard let self else { return }
+                if self.screenRecordingGranted != live {
+                    self.screenRecordingGranted = live
+                }
+            }
+        }
+    }
+
+    /// Live Screen-Recording grant probe via SCShareableContent. Bypasses
+    /// the `CGPreflightScreenCaptureAccess()` cache. Returns `true` on
+    /// granted; `false` on denied or any other failure (network, content
+    /// service unavailable, etc.). Intentionally silent on errors —
+    /// callers see only the resulting Bool.
+    private static func liveScreenRecordingProbe() async -> Bool {
+        do {
+            _ = try await SCShareableContent.excludingDesktopWindows(
+                true,
+                onScreenWindowsOnly: true
+            )
+            return true
+        } catch {
+            return false
+        }
     }
 
     // MARK: - Request

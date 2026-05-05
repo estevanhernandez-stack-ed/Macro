@@ -19,6 +19,7 @@
 // Voice: builder-to-builder, second person, sentence case, em-dashes
 // welcome, no emoji. All colors + fonts route through MacRoTheme.
 
+import AppKit
 import SwiftUI
 
 /// First-launch wizard. Welcome → entitlements → app proper.
@@ -94,6 +95,14 @@ private struct WelcomeStep: View {
 private struct EntitlementsStep: View {
     @Environment(Permissions.self) private var permissions
 
+    /// Tracks whether the user has clicked "Grant Screen Recording" at
+    /// least once in this app session. After that, if the cache still
+    /// reports "not granted" (the macOS Screen-Recording cache trap —
+    /// see `Permissions.refresh()`), we flip the button to "Quit &
+    /// Relaunch macRo" so the user can escape the loop. Resets per
+    /// launch by virtue of `@State` lifetime.
+    @State private var screenRecordingClickedOnce = false
+
     var body: some View {
         VStack(spacing: 24) {
             VStack(spacing: 8) {
@@ -129,23 +138,17 @@ private struct EntitlementsStep: View {
                     name: "Screen Recording",
                     reason: "macRo captures the Roblox window so the timeline editor can scrub through your gameplay frame-by-frame and add image-trigger gates.",
                     granted: permissions.screenRecordingGranted,
-                    primaryActionTitle: permissions.screenRecordingGranted
-                        ? "Open Settings"
-                        : "Grant Screen Recording",
-                    primaryAction: {
-                        if permissions.screenRecordingGranted {
-                            permissions.openSystemSettingsScreenRecording()
-                        } else {
-                            permissions.requestScreenRecording()
-                        }
-                    }
+                    primaryActionTitle: screenRecordingButtonTitle,
+                    primaryAction: handleScreenRecordingTap
                 )
             }
             .frame(maxWidth: 560)
 
-            Text("After you flip a toggle in Settings, switch back to macRo — we re-check on focus.")
+            Text(hintText)
                 .font(MacRoTheme.Font.bodySmall)
                 .foregroundStyle(MacRoTheme.Color.fg3)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 560)
 
             Spacer(minLength: 0)
 
@@ -160,6 +163,48 @@ private struct EntitlementsStep: View {
         }
         .padding(.horizontal, 48)
         .padding(.bottom, 24)
+    }
+
+    // MARK: - Screen Recording button state
+
+    private var screenRecordingButtonTitle: String {
+        if permissions.screenRecordingGranted { return "Open Settings" }
+        if screenRecordingClickedOnce { return "Quit & Relaunch macRo" }
+        return "Grant Screen Recording"
+    }
+
+    private var hintText: String {
+        if !permissions.screenRecordingGranted && screenRecordingClickedOnce {
+            return "If you already granted Screen Recording, macOS may need macRo to relaunch to pick up the new state. Click \u{201C}Quit & Relaunch macRo\u{201D} above."
+        }
+        return "After you flip a toggle in Settings, switch back to macRo — we re-check on focus."
+    }
+
+    private func handleScreenRecordingTap() {
+        if permissions.screenRecordingGranted {
+            permissions.openSystemSettingsScreenRecording()
+            return
+        }
+        if screenRecordingClickedOnce {
+            quitAndRelaunch()
+            return
+        }
+        screenRecordingClickedOnce = true
+        permissions.requestScreenRecording()
+    }
+
+    /// Standard Mac relaunch pattern: spawn `/usr/bin/open -n <bundle>` to
+    /// fire a fresh instance of macRo, then terminate the current process.
+    /// `-n` forces a new instance even if one is running. The new process
+    /// reads live macOS permission state at launch — escaping the cache
+    /// trap described in `Permissions.refresh()`.
+    private func quitAndRelaunch() {
+        let bundlePath = Bundle.main.bundlePath
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+        task.arguments = ["-n", bundlePath]
+        try? task.run()
+        NSApp.terminate(nil)
     }
 }
 
