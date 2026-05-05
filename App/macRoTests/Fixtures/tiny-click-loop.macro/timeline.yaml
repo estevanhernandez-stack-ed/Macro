@@ -1,0 +1,20 @@
+events:
+  - kind: click
+    t: 0.0
+    x: 640
+    y: 360
+    button: left
+  - kind: click
+    t: 0.5
+    x: 640
+    y: 360
+    button: left
+  - kind: click
+    t: 1.0
+    x: 640
+    y: 360
+    button: left
+  - kind: loop
+    t: 1.5
+    label: main-loop
+    target: 0.0

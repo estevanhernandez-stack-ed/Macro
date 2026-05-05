@@ -1,0 +1,20 @@
+id: fixture-tiny-click-loop
+name: Tiny click loop
+description: Hand-authored fixture — bare click-loop with no gates. Coverage — synthesis chokepoint, loop event, frame-rate scaling.
+author: macRo tests
+version: 1.0.0
+schemaVersion: 1
+factoryPatchable: false
+recordedFrameRate: 60
+target:
+  windowClass:
+    - RobloxApp
+    - Roblox
+  windowTitleMatch: Roblox
+  coordinateSpace: window
+  recordedResolution:
+    width: 1280
+    height: 720
+  resolutionPolicy: scale
+requires:
+  bindings: []

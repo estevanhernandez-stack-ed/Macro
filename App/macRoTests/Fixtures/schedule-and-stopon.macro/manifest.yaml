@@ -1,0 +1,25 @@
+id: fixture-schedule-and-stopon
+name: Schedule and stopOn
+description: Hand-authored fixture — always-on schedule plus a stopOn img-banner trigger that exits. Coverage — schedule honoring (paused state), stopOn parallel polling, overall state machine.
+author: macRo tests
+version: 1.0.0
+schemaVersion: 1
+factoryPatchable: false
+recordedFrameRate: 60
+target:
+  windowClass:
+    - RobloxApp
+    - Roblox
+  windowTitleMatch: Roblox
+  coordinateSpace: window
+  recordedResolution:
+    width: 1280
+    height: 720
+  resolutionPolicy: scale
+requires:
+  bindings: []
+schedule:
+  - between:
+      from: "00:00"
+      to: "23:59"
+      timezone: local

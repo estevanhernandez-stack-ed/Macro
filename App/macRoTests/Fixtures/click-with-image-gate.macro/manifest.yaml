@@ -1,0 +1,20 @@
+id: fixture-click-with-image-gate
+name: Click with image gate
+description: Hand-authored fixture — image gate with onFail continue, then a click. Coverage — gate evaluation path, retry policy, onFail continue.
+author: macRo tests
+version: 1.0.0
+schemaVersion: 1
+factoryPatchable: false
+recordedFrameRate: 60
+target:
+  windowClass:
+    - RobloxApp
+    - Roblox
+  windowTitleMatch: Roblox
+  coordinateSpace: window
+  recordedResolution:
+    width: 1280
+    height: 720
+  resolutionPolicy: scale
+requires:
+  bindings: []

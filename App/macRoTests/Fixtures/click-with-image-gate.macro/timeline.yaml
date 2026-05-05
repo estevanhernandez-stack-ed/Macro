@@ -1,0 +1,13 @@
+events:
+  - kind: gate
+    t: 0.0
+    gateKind: img
+    ref: stub-prompt
+    retries: 3
+    timeout: 10
+    onFail: continue
+  - kind: click
+    t: 0.2
+    x: 640
+    y: 360
+    button: left

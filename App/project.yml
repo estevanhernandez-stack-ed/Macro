@@ -78,6 +78,16 @@ targets:
     deploymentTarget: "14.0"
     sources:
       - path: macRoTests
+        excludes:
+          # Test fixtures are loaded by `#filePath`-relative URLs at
+          # runtime (see MacroBundleTests.fixtureURL + EngineTests
+          # item-6 fixture-smoke tests). Including them in the test
+          # bundle's resources flattens manifest.yaml / timeline.yaml
+          # across multiple .macro folders, causing
+          # "Multiple commands produce" build errors. The repo path is
+          # the canonical source; xcodebuild test resolves it from
+          # `#filePath` regardless of bundle resource layout.
+          - "Fixtures"
     dependencies:
       - target: macRo
       - package: Yams
