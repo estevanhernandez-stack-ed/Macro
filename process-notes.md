@@ -144,3 +144,28 @@ After checkpoint 3, items 10 (plugin + seeds) and 11 (release pipeline) are well
 **Active shaping:** autonomous flow per the contract. Substantive sequencing decisions were carried from the design spec's three Key Technical Decisions (which I authored during /spec but were really crystallized during the brainstorm + spec authoring upstream).
 
 **Friction / session logging:** still not invoked.
+
+## /build
+
+Run mode: **autonomous** (locked at /checklist; confirmed by builder at the pre-/build inflection point in the prior session).
+
+**Items 1–4 completed in the prior /build session.** Resumed by a fresh Claude Code session 2026-05-04. Items committed: `256922a` (item 1), `4acc624` (item 2), `0ba38d6` (item 3), `266a4db` (item 4). Three untracked support files for item 5 (`AppShortcutMonitor.swift`, `EngineErrors.swift`, `EngineLogger.swift`) carried over from the prior session, uncommitted.
+
+### Item 5 — `sequence_revised: medium` mid-build
+
+**What broke:** First subagent dispatch for item 5 timed out at 64-min wall-clock with 29 tool uses and **zero source files written** to disk. Stream-idle timeout. Working tree was identical to entry. Subagent burned its window on context-loading without producing committable artifacts.
+
+**Root cause:** item 5 as scoped (Engine.swift core + RunHUD + BindingMismatchPrompt + App.swift wiring + XcodeGen regen + smoke tests + build verification + commit) is genuinely too much for a single subagent dispatch when full architectural context (spec § 6, PRD epic D, builder profile, three pre-existing files, native services, MacroFormat module, MacRoTheme) needs to be loaded cold before any writes start.
+
+**Per the SKILL's "When Something Breaks" protocol:**
+1. Stopped immediately. ✓
+2. Surfaced honestly to builder with three options (split / orchestrator-builds-directly / stop-and-clear). ✓
+3. Damage assessment: zero damage, working tree clean, only the three pre-existing untracked files. ✓
+4. Builder chose **Option A — split item 5 into 5a / 5b / 5c**, three smaller dispatches with finer granularity. ✓
+5. Checklist updated with the revised plan: 5a (Engine.swift core), 5b (UI + wiring + XcodeGen regen), 5c (smoke tests + xcodebuild verify + commit + checklist mark). ✓
+6. Friction logged as `sequence_revised: medium` in this process-notes entry (VC's friction-logger infra still not bootstrapped on this machine; this is the established surrogate). symptom: `"item 5 single-dispatch timed out at 64min/29 tool uses with zero on-disk output; split into 5a (Engine core) / 5b (UI + wiring) / 5c (tests + commit) for finer subagent granularity, same architectural plan."`
+7. Resuming with 5a dispatch. ✓
+
+**Pattern note for /evolve to consider:** subagent dispatch for autonomous /build items has a **context-load tax** (full spec + PRD + builder profile + relevant existing files). When an item's deliverable surface is wide (>4 distinct files of significant LoC), the dispatch tax can consume a meaningful fraction of the available window before substantive work starts. Heuristic for future /checklist authoring: items with >4 substantive deliverables benefit from being authored as sub-items (Na/Nb/Nc) at /checklist time, not waiting for a /build-time break-and-revise. Documented here for the cycle-14 /reflect pass to surface as a candidate Substrate pattern.
+
+**Friction / session logging:** still not invoked at the formal VC layer (infra not bootstrapped on this machine); recorded inline as established surrogate.

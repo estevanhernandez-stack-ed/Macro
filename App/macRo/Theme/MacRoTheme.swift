@@ -34,6 +34,48 @@ enum MacRoTheme {
         static let fg1          = SwiftUI.Color(hex: 0xFFFFFF) // --fg-1
         static let fg2          = SwiftUI.Color(hex: 0xC4CDDA) // --fg-2 (--ink-200)
         static let fg3          = SwiftUI.Color(hex: 0x8E9BAD) // --fg-3 (--ink-300)
+
+        // Semantic state — pulled from 626labs-design `colors_and_type.css`
+        // (--success / --warning / --danger / --info). Added at 5b for the
+        // RunHUD state pill + BindingMismatchPrompt status indicators.
+        // Do not pair with brand cyan/magenta — these are state signals, not
+        // brand surfaces; mixing dilutes both.
+        static let stateOk      = SwiftUI.Color(hex: 0x2BD99A) // --success
+        static let stateWarn    = SwiftUI.Color(hex: 0xFFB454) // --warning
+        static let stateDanger  = SwiftUI.Color(hex: 0xFF5472) // --danger
+        static let stateInfo    = brandCyan                    // --info aliases brand-cyan
+
+        // RunHUD overlay surface — slightly more opaque than bgPage so the
+        // floating window reads as a panel against arbitrary backdrops
+        // (Roblox, the Mac desktop, the editor). Layered as a fill + cyan
+        // hairline border to honor the "always paired" duotone treatment.
+        static let hudSurface   = bgSurface
+        static let hudBorder    = brandCyan
+    }
+
+    // MARK: - Spacing
+
+    /// 4-pt grid. Floating overlays (RunHUD, future RecorderHUD) lean on
+    /// `xs / sm / md` for tight density; full-screen views (Onboarding,
+    /// Library) use `lg / xl` for breathing room.
+    enum Spacing {
+        static let xs: CGFloat = 4
+        static let sm: CGFloat = 8
+        static let md: CGFloat = 12
+        static let lg: CGFloat = 20
+        static let xl: CGFloat = 32
+    }
+
+    // MARK: - Radius
+
+    /// Continuous-corner radii. Cards use `md`; pills + status capsules
+    /// use `pill` (which is just "very large — let SwiftUI clamp to half
+    /// the height"). HUD frame uses `lg` for a slightly chunkier silhouette.
+    enum Radius {
+        static let sm: CGFloat = 6
+        static let md: CGFloat = 10
+        static let lg: CGFloat = 14
+        static let pill: CGFloat = 999
     }
 
     // MARK: - Font
