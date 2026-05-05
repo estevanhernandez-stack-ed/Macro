@@ -33,10 +33,18 @@ settings:
     SWIFT_TREAT_WARNINGS_AS_ERRORS: NO
     GCC_TREAT_WARNINGS_AS_ERRORS: NO
     DEAD_CODE_STRIPPING: YES
-    CODE_SIGN_STYLE: Automatic
-    # Signing identity is intentionally blank in v1 — set per-developer locally,
-    # set via GitHub-hosted secrets in CI for release builds.
-    DEVELOPMENT_TEAM: ""
+    # Manual signing with the Developer ID Application cert — works for both
+    # dev (cmd+R) and release (notarized DMG). Developer ID is the only cert
+    # available locally (no Mac Development cert installed); since it's
+    # stable across rebuilds, macOS TCC sees one app forever — no Screen
+    # Recording / Accessibility re-prompts on every cmd+R, which was the
+    # ad-hoc-signing trap that bit us at item 5/6.
+    # Note: Developer ID-signed apps run outside the Mac App Store without a
+    # provisioning profile; Xcode warns but the binary is valid.
+    CODE_SIGN_STYLE: Manual
+    CODE_SIGN_IDENTITY: "Developer ID Application"
+    DEVELOPMENT_TEAM: "82BSR56X5J"
+    PROVISIONING_PROFILE_SPECIFIER: ""
   configs:
     # Debug builds host-only — keeps SPM dependency builds (e.g., Yams)
     # tractable on Intel hosts where Universal SwiftPM rebuilds choke.
