@@ -39,21 +39,17 @@
 	     Spec ref: design spec § 4 (the .macro bundle format).
 	     ============================================================ -->
 
-	<key>CFBundleDocumentTypes</key>
-	<array>
-		<dict>
-			<key>CFBundleTypeName</key>
-			<string>macRo Macro</string>
-			<key>CFBundleTypeRole</key>
-			<string>Editor</string>
-			<key>LSHandlerRank</key>
-			<string>Owner</string>
-			<key>LSItemContentTypes</key>
-			<array>
-				<string>com.626labs.macro</string>
-			</array>
-		</dict>
-	</array>
+	<!-- CFBundleDocumentTypes deliberately omitted in v1.
+	     Registering macRo as document handler for the com.626labs.macro
+	     UTI made LaunchServices + SwiftUI WindowGroup treat the entire
+	     main window as a drop receiver — drop cursor over interactive
+	     elements, clicks intercepted (the wizard's Continue button
+	     stopped firing). The "Finder double-click a .macro to open in
+	     macRo" path is item 9 territory (Library import); re-add this
+	     block then with a scoped CFBundleTypeRole ("Viewer") and a
+	     drop-target-aware EditorView. The UTExportedTypeDeclarations
+	     below stays — that just declares the UTI exists; it does not
+	     enable drop-targeting. -->
 
 	<key>UTExportedTypeDeclarations</key>
 	<array>

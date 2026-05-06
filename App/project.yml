@@ -28,6 +28,9 @@ settings:
     SWIFT_VERSION: "5.9"
     MACOSX_DEPLOYMENT_TARGET: "14.0"
     ARCHS: "arm64 x86_64"
+    # Hardened Runtime is for notarized production builds. Debug builds
+    # turn it off (see configs.Debug below) so dev iteration doesn't fight
+    # strict enforcement that's only meaningful at release time.
     ENABLE_HARDENED_RUNTIME: YES
     CLANG_ENABLE_MODULES: YES
     SWIFT_TREAT_WARNINGS_AS_ERRORS: NO
@@ -51,6 +54,12 @@ settings:
     # Release stays Universal so the notarized DMG lands as a fat binary.
     Debug:
       ONLY_ACTIVE_ARCH: YES
+      # Hardened Runtime is overkill for dev iteration and was empirically
+      # blocking mouse-event delivery to the wizard's interactive elements
+      # (Continue button unresponsive at item-3 visual verification, 2026-05-05).
+      # Release builds re-enable it via the base setting; notarization in
+      # item 11 requires Hardened Runtime by definition.
+      ENABLE_HARDENED_RUNTIME: NO
     Release:
       ONLY_ACTIVE_ARCH: NO
 

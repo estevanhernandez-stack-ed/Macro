@@ -293,6 +293,7 @@ private struct PrimaryButton: View {
                     RoundedRectangle(cornerRadius: 10, style: .continuous)
                         .fill(MacRoTheme.Color.productTeal.opacity(hovering ? 0.92 : 1.0))
                 )
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
@@ -321,6 +322,7 @@ private struct SecondaryButton: View {
                             lineWidth: 1
                         )
                 )
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }

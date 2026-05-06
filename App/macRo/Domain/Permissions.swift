@@ -59,6 +59,14 @@ public final class Permissions {
 
     // MARK: - Refresh
 
+    /// UserDefaults key — flips true the moment the user clicks "Grant
+    /// Screen Recording" in OnboardingView. Used to gate the live
+    /// `SCShareableContent` probe: pre-request, the probe would trigger
+    /// an unsolicited system permission prompt that modal-blocks the
+    /// wizard. Post-request, the user has already chosen, so the probe
+    /// is safe (it just reads live state, no second prompt fires).
+    public static let screenRecordingRequestedKey = "macRo.permissions.screenRecording.requested"
+
     /// Re-check both grants. Called on init, on app foreground, and any
     /// time the wizard view appears (so a user who flips the toggle in
     /// Settings, then alt-tabs back, sees the live state).
@@ -68,9 +76,12 @@ public final class Permissions {
     /// permission externally while macRo is running, that API continues
     /// to return `false` until the process restarts. We work around this
     /// by falling back to a live `SCShareableContent` probe — the SCK
-    /// API does not consult the cache. Cheap path (cache says `true`)
-    /// stays sync; slow path (cache says `false`) fires a Task that
-    /// reconciles state on main.
+    /// API does not consult the cache. **But the probe ALSO triggers an
+    /// unsolicited system permission prompt when the TCC state is
+    /// undetermined** — that's the bug the explicit gate below avoids.
+    /// We only fire the probe after the user has clicked Grant Screen
+    /// Recording at least once (UserDefaults flag), at which point the
+    /// TCC state is determined and the probe just reads, never prompts.
     public func refresh() {
         let ax = AXIsProcessTrusted()
         if accessibilityGranted != ax { accessibilityGranted = ax }
@@ -82,10 +93,15 @@ public final class Permissions {
         }
 
         // Cache says "no" — could be the truth, could be a stale post-grant
-        // cache. Probe live via SCShareableContent. The probe throws on
-        // denied; succeeds on granted. It does NOT trigger the system
-        // permission prompt — that's reserved for `CGRequestScreenCaptureAccess()`
-        // in `requestScreenRecording()`.
+        // cache. Only fire the live probe if the user has already consented
+        // (or denied) via the explicit "Grant Screen Recording" button.
+        // Pre-request, the probe would trigger an unsolicited TCC prompt.
+        let alreadyRequested = UserDefaults.standard.bool(forKey: Permissions.screenRecordingRequestedKey)
+        guard alreadyRequested else {
+            if screenRecordingGranted { screenRecordingGranted = false }
+            return
+        }
+
         Task { [weak self] in
             let live = await Permissions.liveScreenRecordingProbe()
             await MainActor.run {
@@ -100,8 +116,8 @@ public final class Permissions {
     /// Live Screen-Recording grant probe via SCShareableContent. Bypasses
     /// the `CGPreflightScreenCaptureAccess()` cache. Returns `true` on
     /// granted; `false` on denied or any other failure (network, content
-    /// service unavailable, etc.). Intentionally silent on errors —
-    /// callers see only the resulting Bool.
+    /// service unavailable, etc.). **Caller must ensure TCC state is
+    /// already determined before invoking** — see the gate in `refresh()`.
     private static func liveScreenRecordingProbe() async -> Bool {
         do {
             _ = try await SCShareableContent.excludingDesktopWindows(
@@ -138,8 +154,14 @@ public final class Permissions {
     /// in practice the user has to flip the toggle in System Settings
     /// after the first prompt, so callers should refresh on next
     /// foreground rather than rely on the return value.
+    ///
+    /// Side effect: flips the `screenRecordingRequestedKey` UserDefault
+    /// to `true`. From that point on, `refresh()` is allowed to use the
+    /// live `SCShareableContent` probe (TCC state is now determined; the
+    /// probe will not fire an unsolicited prompt).
     @discardableResult
     public func requestScreenRecording() -> Bool {
+        UserDefaults.standard.set(true, forKey: Permissions.screenRecordingRequestedKey)
         let granted = CGRequestScreenCaptureAccess()
         if !granted {
             openSystemSettingsScreenRecording()
