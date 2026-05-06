@@ -15,10 +15,16 @@
 // PostRecordSheet — three explicit paths so casual users don't have to
 // open the editor for trivial macros: Save (one-shot, current behavior),
 // Save as loop (append a `loop` event with delayMs, modify in place),
-// Open in Editor (placeholder until item 8). Loop-save mutates the
-// already-finalized bundle on disk: load timeline.yaml, append
-// `loop {target: 0.0, delayMs: <input * 1000>}`, save back to the same
-// URL. Gate PNGs and manifest are untouched.
+// Open in Editor. Loop-save mutates the already-finalized bundle on
+// disk: load timeline.yaml, append `loop {target: 0.0, delayMs:
+// <input * 1000>}`, save back to the same URL. Gate PNGs and manifest
+// are untouched.
+//
+// 8a additions: "Open in Editor" now opens the real editor shell via
+// `EditorWindow.show(bundleURL:)` (read-only lanes; cuts / gates /
+// save flow land at 8b / 8c). The "Show in Finder" affordance from
+// the pre-8a placeholder moves to a footer link on the post-record
+// sheet so the inspect-bundle path stays reachable.
 
 import AppKit
 import SwiftUI
@@ -140,13 +146,12 @@ struct ContentView: View {
             }
 
         case .openInEditor:
-            // Placeholder until item 8 lands the full editor. For now,
-            // reveal in Finder so the user can inspect the bundle.
-            revealConfirmation = RevealConfirmation(
-                url: bundleURL,
-                title: "Editor lands at item 8",
-                message: editorPlaceholderMessage(for: bundleURL)
-            )
+            // Item 8a lands the editor shell — open it in a dedicated
+            // NSWindow. The editor loads the bundle via init parameter
+            // and presents toolbar + video preview + transport + read-
+            // only VIDEO/MOVE/ACTIONS lanes. GATES, edit operations,
+            // inspector, save flow all wire at 8b/8c.
+            EditorWindow.show(bundleURL: bundleURL)
         }
     }
 
@@ -212,10 +217,6 @@ struct ContentView: View {
             ? String(format: "%.0f", seconds)
             : String(format: "%.2f", seconds)
         return "Saved \(url.lastPathComponent) with a \(formatted)-second wait between iterations. Run it from the Library — abort with control-option-command-period."
-    }
-
-    private func editorPlaceholderMessage(for url: URL) -> String {
-        return "The in-app editor lands at item 8. For now you can inspect the bundle in Finder. The Save and Save-as-loop paths above cover the casual flow."
     }
 
     // MARK: - Orchestration
@@ -401,14 +402,35 @@ struct PostRecordSheet: View {
                 }
             }
 
-            // Option 3 — Open in Editor (placeholder)
+            // Option 3 — Open in Editor (item 8a shell, lanes
+            // populate from the loaded bundle; cuts / gates / save
+            // land at 8b/8c).
             PostRecordOptionButton(
                 title: "Open in Editor",
-                subtitle: "The full editor lands at item 8. For now this reveals the bundle in Finder so you can inspect it.",
+                subtitle: "Inspect the timeline on a four-lane editor. Read-only for now — cuts, gates, and save round-trip land at 8b / 8c.",
                 isPrimary: false
             ) {
                 onResolve(.openInEditor)
             }
+
+            // Footer — secondary "Show in Finder" affordance for users
+            // who prefer to inspect the bundle dir directly. The
+            // pre-8a behavior surfaced this on Open-in-Editor; it's
+            // still useful for the rare debugging case so we keep it
+            // reachable from the same sheet.
+            HStack {
+                Button(action: {
+                    NSWorkspace.shared.activateFileViewerSelecting([bundleURL])
+                }) {
+                    Text("Show in Finder")
+                        .font(MacRoTheme.Font.bodySmall)
+                        .foregroundStyle(MacRoTheme.Color.fg3)
+                        .underline()
+                }
+                .buttonStyle(.plain)
+                Spacer()
+            }
+            .padding(.top, MacRoTheme.Spacing.xs)
 
             Spacer(minLength: 0)
         }
