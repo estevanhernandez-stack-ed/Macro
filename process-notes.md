@@ -169,3 +169,27 @@ Run mode: **autonomous** (locked at /checklist; confirmed by builder at the pre-
 **Pattern note for /evolve to consider:** subagent dispatch for autonomous /build items has a **context-load tax** (full spec + PRD + builder profile + relevant existing files). When an item's deliverable surface is wide (>4 distinct files of significant LoC), the dispatch tax can consume a meaningful fraction of the available window before substantive work starts. Heuristic for future /checklist authoring: items with >4 substantive deliverables benefit from being authored as sub-items (Na/Nb/Nc) at /checklist time, not waiting for a /build-time break-and-revise. Documented here for the cycle-14 /reflect pass to surface as a candidate Substrate pattern.
 
 **Friction / session logging:** still not invoked at the formal VC layer (infra not bootstrapped on this machine); recorded inline as established surrogate.
+
+### UX additions captured 2026-05-05 — Quick-loop save flow (item 7.5 inserted)
+
+**Builder directive (verbatim):**
+
+> "if a user just recorded a simple throwaway macro or simple macro, they're can use just they go in themselves, get themselves to where they wanna be. They start the macro recorder. They hit a couple of keys that they have, linked to hot keys in the game, and it executes things and they just want that to run on a loop. It should be that easy for them. They should be able to, put a timer between when it repeats the same their same actions without having to edit the whole thing. And then if they wanna edit the whole thing, the editor."
+
+**Why this lands now (between items 7 and 8):**
+
+The post-record UX in 7b is currently a single-button "Recording saved" alert. That's correct for the wizard-flow but wrong for the casual user who recorded a 3-keystroke loop and just wants it to repeat forever. Forcing them through the editor to add a `loop` event is friction; the editor is the wedge for nontrivial macros, not table stakes for the simplest case.
+
+**Item 7.5 inserts a 3-option post-record sheet between item 7 (recorder) and item 8 (editor):**
+
+- **Save** — current behavior (one-shot, raw timeline)
+- **Save as loop** — append a `loop {target: 0.0, delayMs: <user-input ms>}` event to the timeline, save the bundle. Zero editor visit. Requires a v1 schema addition (`delayMs: Int?` optional field on the `loop` event) + Engine dispatch update to honor the delay between jumps.
+- **Open in Editor** — placeholder until item 8 lands; for now opens Finder.
+
+**Pattern observation for /evolve:** the "casual user wants the simplest thing" insight tends to surface at empirical-test time, not at /scope or /prd time. PRD epic B captured "record + save + EditorView loads" as the canonical flow but didn't enumerate the zero-edit-loop case. Building the recorder, recording a real macro, and confronting "now what?" is what surfaced this. Pattern candidate: **after every checklist item that produces a user-facing surface (recorder, editor, library), a deliberate "casual user happy path" review beat catches missing zero-friction paths.**
+
+**Schema impact:** `loop` event gets an optional `delayMs: Int?` field. Backward-compatible (existing macros without the field default to 0 = immediate jump, matching today's behavior). `bun run codegen` after the schema edit; CI lockstep guard catches any drift.
+
+**Engine impact:** `Engine.swift`'s loop-event dispatch path needs to honor `delayMs` — sleep on the engine serial queue between jump-to-target and resuming the run loop. Currently the loop case is structurally an immediate jump; adding a delay is a single `try? await Task.sleep(...)` (or its DispatchQueue equivalent on the engine queue).
+
+**Friction / session logging:** still not invoked at the formal VC layer (infra not bootstrapped on this machine); recorded inline as established surrogate.
