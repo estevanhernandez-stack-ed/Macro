@@ -49,6 +49,12 @@ struct MacRoApp: App {
                 if abortMonitor == nil {
                     abortMonitor = AppShortcutMonitor(onAbort: {
                         Engine.shared.abort(reason: .userHotkey)
+                        // Recorder.shared.abort() is async-throws; fire-and-forget into a
+                        // Task. Idempotent — abort() is documented safe-from-any-state.
+                        // Engine + Recorder cannot both be active at once (Engine refuses
+                        // to start while a recording is running per item 5's chokepoint),
+                        // so the calls don't conflict — they're parallel safety surfaces.
+                        Task { try? await Recorder.shared.abort() }
                     })
                 }
                 NSApp.activate(ignoringOtherApps: true)

@@ -51,6 +51,15 @@ enum MacRoTheme {
         // hairline border to honor the "always paired" duotone treatment.
         static let hudSurface   = bgSurface
         static let hudBorder    = brandCyan
+
+        // Recording-red — RecorderHUD's pulsing dot + RECORDING pill border.
+        // Brand magenta is too saturated to read as "live capture happening
+        // right now"; the design system carries no "record red" token of its
+        // own, so this is a one-off accent scoped to recording surfaces.
+        // Hex matches the canonical broadcast-red used in QuickTime and the
+        // VLC record button — sits between brand-magenta and stateDanger so
+        // it doesn't collide with either signal.
+        static let recordingRed = SwiftUI.Color(hex: 0xFF3B30)
     }
 
     // MARK: - Spacing
@@ -64,6 +73,9 @@ enum MacRoTheme {
         static let md: CGFloat = 12
         static let lg: CGFloat = 20
         static let xl: CGFloat = 32
+        // Reserved for hero surfaces — countdown numerals, splash hero blocks.
+        // Added at item 7b for CountdownOverlay's centered layout.
+        static let xxl: CGFloat = 56
     }
 
     // MARK: - Radius
@@ -85,6 +97,14 @@ enum MacRoTheme {
         // family isn't installed; the bundled-font installation lands at the first
         // real authoring beat.
         static let display     = SwiftUI.Font.custom("Space Grotesk", size: 40, relativeTo: .largeTitle)
+            .weight(.bold)
+
+        // Display XL — countdown numerals on CountdownOverlay (item 7b).
+        // The 3-2-1 sequence needs to read instantly from across the room
+        // while the user is mid-action repositioning Roblox; 160pt is the
+        // smallest size that lands. Uses the same Space Grotesk family so
+        // it inherits the brand's display voice.
+        static let displayXL   = SwiftUI.Font.custom("Space Grotesk", size: 160, relativeTo: .largeTitle)
             .weight(.bold)
 
         static let heading1    = SwiftUI.Font.custom("Space Grotesk", size: 32, relativeTo: .title)
