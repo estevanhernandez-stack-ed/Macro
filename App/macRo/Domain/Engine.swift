@@ -1004,6 +1004,32 @@ public final class Engine {
         if visits > Self.loopRunawayThreshold {
             throw EngineError.loopRunaway(label: p.label)
         }
+
+        // Item 7.5 — optional inter-iteration delay. Sleep BEFORE the
+        // jump so the user perceives "playback finished, then we waited,
+        // then it started again." cancelAwareSleep polls the abort flag
+        // every 50ms; if abort fires mid-wait, the helper returns false
+        // and we exit dispatch without moving the cursor. The next
+        // iteration of the run loop reads run.cancelled and returns
+        // cleanly. Default behavior (delayMs nil or 0) is unchanged —
+        // the immediate jump that matched v1 pre-7.5.
+        if let delayMs = p.delayMs, delayMs > 0 {
+            let seconds = Double(delayMs) / 1000.0
+            run.logger.log(kind: "loop.delay.start", detail: [
+                "label": p.label,
+                "ms": String(delayMs)
+            ])
+            if !cancelAwareSleep(seconds) {
+                // Abort fired during the wait. Don't advance, don't jump,
+                // don't log a misleading "loop.jump" — the run loop sees
+                // run.cancelled on its next iteration and exits.
+                run.logger.log(kind: "loop.delay.aborted", detail: [
+                    "label": p.label
+                ])
+                return
+            }
+        }
+
         // Find the event index whose t == target. Spec § 4: t is absolute
         // from start; loop targets typically reference an earlier event's t.
         if let idx = run.activeEvents.firstIndex(where: { eventTime($0) == p.target }) {

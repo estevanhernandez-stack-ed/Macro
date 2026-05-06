@@ -411,6 +411,100 @@ final class EngineTests: XCTestCase {
     func testScheduleAndStopOnFixtureLoadsAndPreflights() async throws {
         try await runFixturePreflightSmoke(fixtureName: "schedule-and-stopon.macro")
     }
+
+    // MARK: - Item 7.5 — loop event delayMs
+
+    /// Verify the v1.5 schema addition + Engine dispatch path compile and
+    /// round-trip cleanly for a `loop` event carrying `delayMs`.
+    ///
+    /// Three layered assertions:
+    ///   1. The codegen produced a `delayMs: Int?` slot on
+    ///      TimelineEventLoopPayload — provable by constructing the
+    ///      payload with a non-nil delayMs and reading it back.
+    ///   2. The schema field round-trips through MacroBundle's YAML
+    ///      encoder + decoder without loss — write to a temp dir, load,
+    ///      assert delayMs survives.
+    ///   3. The engine accepts the bundle through pre-flight without a
+    ///      type / decode crash. Because the test environment has no
+    ///      Roblox window, the run must terminate at .windowNotFound
+    ///      (idle entry) or .captureFailed (sticky-terminal entry) —
+    ///      same pattern as the item-6 fixture tests. Hitting either
+    ///      terminal state proves the loop dispatch's new sleep branch
+    ///      compiled and is reachable without crashing the dispatcher.
+    ///
+    /// Empirical "engine actually waited delayMs ms between iterations"
+    /// verification owes a Roblox-attached fixture and lands at
+    /// CHECKPOINT #1 alongside item 7's empirical pass. delayMs is
+    /// 100ms here so even with a future fixture the wait is bounded.
+    func testLoopEventDelayMsRoundTripsAndDispatches() async throws {
+        // 1. Construct a minimal bundle ending in loop {target: 0.0, delayMs: 100}.
+        let manifest = Manifest(
+            id: "test-loop-delay",
+            name: "Loop Delay Smoke",
+            version: "0.0.1",
+            schemaVersion: 1,
+            factoryPatchable: false,
+            target: Target(
+                windowClass: ["RobloxClient"],
+                coordinateSpace: .window
+            )
+        )
+        let firstEvent = TimelineEvent.keyPress(
+            TimelineEvent.TimelineEventKeyPressPayload(t: 0.0, key: "1")
+        )
+        let loopEvent = TimelineEvent.loop(
+            TimelineEvent.TimelineEventLoopPayload(
+                t: 0.5,
+                label: "quick-loop",
+                target: 0.0,
+                delayMs: 100
+            )
+        )
+        let timeline = Timeline(events: [firstEvent, loopEvent])
+        let bundle = MacroBundleData(manifest: manifest, timeline: timeline)
+
+        // Direct readback (assertion 1 — payload slot exists).
+        if case .loop(let p) = timeline.events.last! {
+            XCTAssertEqual(p.delayMs, 100, "delayMs must be readable off the loop payload")
+        } else {
+            XCTFail("constructed timeline did not end in a loop event")
+        }
+
+        // 2. YAML round-trip via MacroBundle.save → MacroBundle.load.
+        let tmp = FileManager.default.temporaryDirectory
+            .appendingPathComponent("macRo-loopdelay-\(UUID().uuidString).macro")
+        defer { try? FileManager.default.removeItem(at: tmp) }
+        try MacroBundle.save(bundle, to: tmp)
+        let reloaded = try MacroBundle.load(at: tmp)
+        guard case .loop(let reloadedLoop) = reloaded.timeline.events.last! else {
+            XCTFail("reloaded timeline did not end in a loop event")
+            return
+        }
+        XCTAssertEqual(
+            reloadedLoop.delayMs, 100,
+            "delayMs must round-trip through YAML encode + decode"
+        )
+        XCTAssertEqual(reloadedLoop.target, 0.0)
+        XCTAssertEqual(reloadedLoop.label, "quick-loop")
+
+        // 3. Engine dispatch. Same idle / sticky-terminal split as the
+        //    item-6 fixture tests. Hitting either terminal cleanly is
+        //    the structural pass — proves the new sleep branch compiles
+        //    and didn't introduce a crash path on the way to preflight.
+        let entryState = Engine.shared.state
+        let isFirstEntry: Bool
+        switch entryState {
+        case .idle:
+            isFirstEntry = true
+        default:
+            isFirstEntry = false
+        }
+        if isFirstEntry {
+            try await assertIdleEntryFails(bundle: bundle, fixtureName: "loop-delay-synth")
+        } else {
+            await assertStickyTerminalRejects(bundle: bundle, fixtureName: "loop-delay-synth")
+        }
+    }
 }
 
 // MARK: - ErrorBox

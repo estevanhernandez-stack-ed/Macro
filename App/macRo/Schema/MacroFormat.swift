@@ -450,15 +450,26 @@ public enum TimelineEvent: Codable, Sendable, Equatable, Hashable {
         /// Absolute time (seconds) to jump the playhead to. Typically
         /// points at an earlier event's `t`.
         public let target: Double
+        /// Optional delay in milliseconds to wait BEFORE jumping the
+        /// playhead to `target`. Backward-compatible — when absent or
+        /// zero, the jump is immediate (matching v1 pre-7.5 behavior).
+        /// The wait is abortable: the engine's cancel-aware sleep polls
+        /// the abort flag every 50ms and exits cleanly without resuming
+        /// the loop. Used by the quick-loop save flow (item 7.5) to put
+        /// a user-set pause between iterations of a record-and-loop
+        /// macro without forcing the user through the editor.
+        public let delayMs: Int?
 
         public init(
             t: Double,
             label: String,
-            target: Double
+            target: Double,
+            delayMs: Int? = nil
         ) {
             self.t = t
             self.label = label
             self.target = target
+            self.delayMs = delayMs
         }
     }
 
