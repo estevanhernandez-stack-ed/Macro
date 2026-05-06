@@ -241,16 +241,24 @@ struct EditorView: View {
                                 }
                                 laneRow(label: "MOVE") {
                                     MoveLane(
-                                        events: visibleTimelineEvents(workingState: workingState),
+                                        events: workingState.visibleEvents,
                                         duration: duration,
-                                        playheadSeconds: playheadSeconds
+                                        playheadSeconds: playheadSeconds,
+                                        selection: workingState.selection,
+                                        onSelectEvent: { idx in
+                                            select(originalIndex: idx)
+                                        }
                                     )
                                 }
                                 laneRow(label: "ACTIONS") {
                                     ActionsLane(
-                                        events: visibleTimelineEvents(workingState: workingState),
+                                        events: workingState.visibleEvents,
                                         duration: duration,
-                                        playheadSeconds: playheadSeconds
+                                        playheadSeconds: playheadSeconds,
+                                        selection: workingState.selection,
+                                        onSelectEvent: { idx in
+                                            select(originalIndex: idx)
+                                        }
                                     )
                                 }
                                 laneRow(label: "GATES") {
@@ -365,22 +373,6 @@ struct EditorView: View {
             await MainActor.run {
                 self.loadError = error.localizedDescription
             }
-        }
-    }
-
-    // MARK: - Visible-event compatibility shim
-
-    /// MOVE / ACTIONS lanes still take a `[TimelineEvent]` (8a contract).
-    /// Translate the working state's compressed visible-event list back
-    /// to bare TimelineEvents for those lanes, with `t` rewritten to
-    /// compressed coordinates so positioning matches GATES + VIDEO. This
-    /// is a thin adapter — when 8c lands script-view round-trip the
-    /// lanes can take VisibleEvent directly and we'll drop this shim.
-    private func visibleTimelineEvents(workingState: WorkingState) -> [TimelineEvent] {
-        workingState.visibleEvents.compactMap { ve -> TimelineEvent? in
-            // Rewrite `t` to compressed coordinates so the lanes
-            // position correctly against `compressedDuration`.
-            withShifted(t: ve.compressedT, event: ve.event)
         }
     }
 
@@ -733,10 +725,9 @@ func eventTime(_ event: TimelineEvent) -> Double {
 }
 
 /// Build a fresh TimelineEvent that's a copy of `event` with `t` swapped.
-/// Public-on-file because EditorView's visibleTimelineEvents shim needs
-/// to translate event timestamps to compressed space, and the inspector
-/// uses the same helper for timing-offset commits. Lifted to file scope
-/// so both call sites share one implementation.
+/// File-scope because EditorInspector uses it for timing-offset commits
+/// and EditorSaveFlow uses it when re-emitting compressed events on
+/// save. Single implementation, two callers.
 func withShifted(t newT: Double, event: TimelineEvent) -> TimelineEvent? {
     switch event {
     case .keyDown(let p):
@@ -792,6 +783,11 @@ public enum EditorWindow {
         win.titlebarAppearsTransparent = true
         win.title = "macRo Editor"
         win.contentViewController = host
+        // contentViewController auto-fits to the SwiftUI host's intrinsic
+        // size, which collapses the editor to ~tiny on first open.
+        // Force the content size AFTER the host is attached so the
+        // contentRect we declared above actually wins, then center.
+        win.setContentSize(NSSize(width: 1180, height: 820))
         win.center()
         win.minSize = NSSize(width: 920, height: 600)
         win.isReleasedWhenClosed = false

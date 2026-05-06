@@ -8,14 +8,19 @@
 // 3.5s hold draw at proportionally different widths so the player
 // can tell movement intent apart at a glance.
 //
-// Read-only in 8a — no drag-to-edit, no inspector wiring. Clicking a
-// bar would normally open the inspector at 8b; here it's a no-op.
+// 8b wires selection: each bar carries the originalEventIndex of the
+// event it was derived from (keyDown for paired holds, keyPress for
+// taps, cameraDelta for camera bars). Tapping a bar invokes
+// `onSelectEvent(originalEventIndex)` — EditorView routes that to its
+// `select()` flow which populates the inspector. Selected bars get a
+// 2pt productTeal ring so the user can see WHICH bar they're editing.
 //
 // Pairing logic: a MOVE event is a `keyDown` followed by the matching
 // `keyUp` at a later `t`. We zip these into "held" intervals at
 // render time. Stray `keyDown` without `keyUp` (e.g., the recording
 // stopped while a key was held) renders with the held duration
-// extending to the end of the timeline.
+// extending to the end of the timeline. Selection-wise, the keyDown
+// "owns" the bar — keyUp's index is irrelevant for selection.
 //
 // Camera deltas: each `cameraDelta` event has its own `duration`
 // field (the engine smooths the delta over that span). We render
@@ -29,9 +34,20 @@ import SwiftUI
 
 struct MoveLane: View {
 
-    let events: [TimelineEvent]
+    /// Visible (post-cut, compressed) events. We take `VisibleEvent`
+    /// rather than raw timeline events so the lane positions bars on
+    /// the compressed timeline AND retains the original-list index
+    /// needed for selection routing.
+    let events: [VisibleEvent]
     let duration: Double
     let playheadSeconds: Double
+    /// Currently selected event index (in the AUTHORITATIVE list).
+    /// Used to highlight the bar whose originalEventIndex matches.
+    let selection: EventSelection?
+    /// Click handler — invoked with the original-list index of the
+    /// event that "owns" the clicked bar (keyDown / keyPress /
+    /// cameraDelta). EditorView wires this to its `select()` flow.
+    let onSelectEvent: (Int) -> Void
 
     /// Set of keys we treat as "movement" for this lane. Anything else
     /// (numbers, hotkeys, etc.) routes to the ACTIONS lane. Lower-cased
@@ -54,7 +70,8 @@ struct MoveLane: View {
 
                 // Held-key bars (green).
                 ForEach(heldBars) { bar in
-                    HeldKeyBar(label: barLabel(for: bar))
+                    let isSelected = selection?.originalEventIndex == bar.originalEventIndex
+                    HeldKeyBar(label: barLabel(for: bar), isSelected: isSelected)
                         .frame(
                             width: max(scale(bar.duration), MacRoTheme.Lane.minBarWidth),
                             height: MacRoTheme.Lane.moveHeight - 6
@@ -63,11 +80,15 @@ struct MoveLane: View {
                             x: scale(bar.start) + max(scale(bar.duration), MacRoTheme.Lane.minBarWidth) / 2,
                             y: MacRoTheme.Lane.moveHeight / 2
                         )
+                        .onTapGesture {
+                            onSelectEvent(bar.originalEventIndex)
+                        }
                 }
 
                 // Camera-delta bars (blue accent).
                 ForEach(cameraBars) { bar in
-                    CameraBar()
+                    let isSelected = selection?.originalEventIndex == bar.originalEventIndex
+                    CameraBar(isSelected: isSelected)
                         .frame(
                             width: max(scale(bar.duration), MacRoTheme.Lane.minBarWidth),
                             height: MacRoTheme.Lane.moveHeight - 10
@@ -76,6 +97,9 @@ struct MoveLane: View {
                             x: scale(bar.start) + max(scale(bar.duration), MacRoTheme.Lane.minBarWidth) / 2,
                             y: MacRoTheme.Lane.moveHeight / 2
                         )
+                        .onTapGesture {
+                            onSelectEvent(bar.originalEventIndex)
+                        }
                 }
 
                 // Playhead overlay.
@@ -95,24 +119,30 @@ struct MoveLane: View {
     /// Pair `keyDown` with the next `keyUp` for the same WASD key.
     /// Stray `keyDown` (no matching `keyUp`) extends to the end of
     /// the timeline — common for "user hit stop while still holding W."
+    /// Each bar carries the keyDown's (or keyPress's) originalEventIndex
+    /// so taps route selection back to the right authoritative event.
     private func makeHeldKeyBars() -> [HeldKey] {
         var bars: [HeldKey] = []
-        var openHolds: [String: Double] = [:] // key (lower) -> start time
+        // key (lower) -> (start time, originalEventIndex of the keyDown
+        // that opened this hold). We carry the index forward so the
+        // resulting bar can attribute selection to the keyDown.
+        var openHolds: [String: (start: Double, originalIndex: Int)] = [:]
 
-        for event in events {
-            switch event {
+        for ve in events {
+            switch ve.event {
             case .keyDown(let payload):
                 let key = payload.key.lowercased()
                 guard Self.moveKeys.contains(key) else { continue }
-                openHolds[key] = payload.t
+                openHolds[key] = (ve.compressedT, ve.originalEventIndex)
             case .keyUp(let payload):
                 let key = payload.key.lowercased()
                 guard Self.moveKeys.contains(key) else { continue }
-                if let start = openHolds.removeValue(forKey: key) {
+                if let open = openHolds.removeValue(forKey: key) {
                     bars.append(HeldKey(
                         key: key,
-                        start: start,
-                        duration: max(payload.t - start, 0.0)
+                        start: open.start,
+                        duration: max(ve.compressedT - open.start, 0.0),
+                        originalEventIndex: open.originalIndex
                     ))
                 }
             case .keyPress(let payload):
@@ -122,8 +152,9 @@ struct MoveLane: View {
                 if Self.moveKeys.contains(key) {
                     bars.append(HeldKey(
                         key: key,
-                        start: payload.t,
-                        duration: 0.05
+                        start: ve.compressedT,
+                        duration: 0.05,
+                        originalEventIndex: ve.originalEventIndex
                     ))
                 }
             default:
@@ -131,11 +162,12 @@ struct MoveLane: View {
             }
         }
         // Flush any open holds — extend to end of timeline.
-        for (key, start) in openHolds {
+        for (key, open) in openHolds {
             bars.append(HeldKey(
                 key: key,
-                start: start,
-                duration: max(duration - start, 0.05)
+                start: open.start,
+                duration: max(duration - open.start, 0.05),
+                originalEventIndex: open.originalIndex
             ))
         }
         return bars
@@ -143,12 +175,16 @@ struct MoveLane: View {
 
     private func makeCameraBars() -> [CameraIntent] {
         var bars: [CameraIntent] = []
-        for event in events {
-            if case .cameraDelta(let payload) = event {
+        for ve in events {
+            if case .cameraDelta(let payload) = ve.event {
                 // Many cameraDelta events have duration 0 (single-frame
                 // deltas); render those as min-width chips.
                 let dur = max(payload.duration, 0.05)
-                bars.append(CameraIntent(start: payload.t, duration: dur))
+                bars.append(CameraIntent(
+                    start: ve.compressedT,
+                    duration: dur,
+                    originalEventIndex: ve.originalEventIndex
+                ))
             }
         }
         return bars
@@ -174,42 +210,67 @@ struct MoveLane: View {
 // MARK: - Bar models
 
 private struct HeldKey: Identifiable {
-    let id = UUID()
+    /// Use the originating event's original index as the SwiftUI id so
+    /// re-renders don't churn the bar identity (a UUID per render would
+    /// reset selection-ring animations on every command apply).
+    var id: Int { originalEventIndex }
     let key: String
     let start: Double
     let duration: Double
+    let originalEventIndex: Int
 }
 
 private struct CameraIntent: Identifiable {
-    let id = UUID()
+    var id: Int { originalEventIndex }
     let start: Double
     let duration: Double
+    let originalEventIndex: Int
 }
 
 // MARK: - Bar views
 
 private struct HeldKeyBar: View {
     let label: String
+    let isSelected: Bool
 
     var body: some View {
-        RoundedRectangle(cornerRadius: 3, style: .continuous)
-            .fill(MacRoTheme.Color.moveKey)
-            .overlay(
-                Text(label)
-                    .font(MacRoTheme.Font.monoMicro)
-                    .foregroundStyle(MacRoTheme.Color.fg1)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .padding(.horizontal, 4),
-                alignment: .leading
-            )
+        ZStack {
+            RoundedRectangle(cornerRadius: 3, style: .continuous)
+                .fill(MacRoTheme.Color.moveKey)
+                .overlay(
+                    Text(label)
+                        .font(MacRoTheme.Font.monoMicro)
+                        .foregroundStyle(MacRoTheme.Color.fg1)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .padding(.horizontal, 4),
+                    alignment: .leading
+                )
+            // Selection ring — productTeal to match GatesLane / VIDEO
+            // handles. 2pt outline so it reads against the green fill
+            // without redrawing the bar's body.
+            if isSelected {
+                RoundedRectangle(cornerRadius: 3, style: .continuous)
+                    .stroke(MacRoTheme.Color.gateSelectionRing, lineWidth: 2)
+            }
+        }
+        .contentShape(Rectangle())
     }
 }
 
 private struct CameraBar: View {
+    let isSelected: Bool
+
     var body: some View {
-        RoundedRectangle(cornerRadius: 2, style: .continuous)
-            .fill(MacRoTheme.Color.moveCamera)
-            .opacity(0.85)
+        ZStack {
+            RoundedRectangle(cornerRadius: 2, style: .continuous)
+                .fill(MacRoTheme.Color.moveCamera)
+                .opacity(0.85)
+            if isSelected {
+                RoundedRectangle(cornerRadius: 2, style: .continuous)
+                    .stroke(MacRoTheme.Color.gateSelectionRing, lineWidth: 2)
+            }
+        }
+        .contentShape(Rectangle())
     }
 }
