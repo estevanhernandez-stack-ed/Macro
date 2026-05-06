@@ -78,14 +78,16 @@ public enum GameSelection: Equatable, Sendable {
         return ["Roblox", "com.Roblox.client"]
     }
 
-    /// Title regex passed to WindowDetector. PS99's title contains the
-    /// game name when the player is in-game; untagged accepts any
-    /// Roblox-titled window.
+    /// Title regex passed to WindowDetector. **Both PS99 and untagged
+    /// match on "Roblox"** — the macOS Roblox client window title is
+    /// always just "Roblox" regardless of which place is loaded; the
+    /// game name is rendered INSIDE the Roblox window content area,
+    /// never in the title bar. The `placeId` field is what identifies
+    /// PS99 specifically (8737899170); window matching is the same for
+    /// every Roblox game on Mac. Pre-2026-05-05 this returned
+    /// "Pet Simulator 99" for `.ps99` and never matched in practice.
     public var windowTitleMatch: String {
-        switch self {
-        case .ps99:    return "Pet Simulator 99"
-        case .untagged: return "Roblox"
-        }
+        return "Roblox"
     }
 
     /// Display name for `manifest.game.name`.

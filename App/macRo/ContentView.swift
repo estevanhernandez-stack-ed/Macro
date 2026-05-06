@@ -94,8 +94,14 @@ struct ContentView: View {
         CountdownOverlayPanel.show(
             game: game,
             onComplete: {
-                // Countdown finished — start recording.
+                // Countdown finished — bring Roblox to the front BEFORE
+                // calling startRecording. Without this, Roblox could be
+                // occluded or background; SCK would still find the window
+                // but the user's expectation is "I clicked Start, Roblox
+                // is now in front, I'm recording." Surfacing Roblox here
+                // closes the focus-handoff gap.
                 Task { @MainActor in
+                    activateRoblox()
                     do {
                         try await Recorder.shared.startRecording(game: game)
                         // Show the HUD only after startRecording resolves
@@ -131,6 +137,32 @@ struct ContentView: View {
         // user knows the bundle is on disk and inspectable but not yet
         // opened in an editor.
         return "Saved to \(url.lastPathComponent). Open in Finder to inspect — the in-app editor lands at item 8."
+    }
+}
+
+/// Bring the Roblox client to the front via NSRunningApplication. Tries
+/// the canonical Mac bundle ID first, falls back to localized name match.
+/// No-op if Roblox isn't running — startRecording's preflight will throw
+/// windowNotFound and the caller surfaces the error.
+@MainActor
+private func activateRoblox() {
+    let candidates = [
+        "com.Roblox.RobloxPlayer",
+        "com.Roblox.client",
+        "com.roblox.RobloxPlayer"
+    ]
+    for bundleID in candidates {
+        let apps = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
+        if let app = apps.first {
+            app.activate(options: [.activateIgnoringOtherApps])
+            return
+        }
+    }
+    // Bundle ID lookup miss — try by localized name.
+    if let app = NSWorkspace.shared.runningApplications.first(where: {
+        ($0.localizedName ?? "").localizedCaseInsensitiveContains("Roblox")
+    }) {
+        app.activate(options: [.activateIgnoringOtherApps])
     }
 }
 

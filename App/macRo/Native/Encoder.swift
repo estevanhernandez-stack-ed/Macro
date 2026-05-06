@@ -165,10 +165,34 @@ public final class Encoder {
     /// Finalize the file. Async because AVAssetWriter's finishWriting is
     /// async by nature; we wrap the closure-completion shape into
     /// async/await for caller ergonomics.
-    public func finish() async throws {
+    ///
+    /// **No-frames case (sessionStarted == false):** AVAssetWriter requires
+    /// `startSession(atSourceTime:)` to have been called at least once before
+    /// `finishWriting()` is legal. When zero frames flowed (SCK couldn't
+    /// match a window, or the user hit stop before the first frame landed),
+    /// calling `finishWriting()` returns `.failed` status with the generic
+    /// "operation could not be completed" error. We detect this case
+    /// explicitly: clean up state, delete the empty `.mov` if it exists, and
+    /// return cleanly with `producedVideoFile = false`. The caller (Recorder)
+    /// can then save the input log + snapshots without a video stream.
+    @discardableResult
+    public func finish() async throws -> Bool {
         guard isWriting, let writer = writer, let input = input else {
             throw EncoderError.notStarted
         }
+
+        // No-frames case — AVAssetWriter would fail finishWriting(); skip it,
+        // clean up, delete any empty file at the output path.
+        guard sessionStarted else {
+            input.markAsFinished()
+            self.isWriting = false
+            self.writer = nil
+            self.input = nil
+            self.sessionStarted = false
+            try? FileManager.default.removeItem(at: outputURL)
+            return false
+        }
+
         input.markAsFinished()
         await writer.finishWriting()
         let status = writer.status
@@ -179,9 +203,30 @@ public final class Encoder {
         self.sessionStarted = false
 
         if status == .failed {
-            throw EncoderError.finishFailed(
-                message: writerError?.localizedDescription ?? "writer.status == .failed"
-            )
+            // AVAssetWriter rejected finalization despite frames having
+            // flowed (sessionStarted was true). Common underlying causes:
+            // PTS collisions or backward jumps from SCK, format-description
+            // drift mid-stream, partial-write interruption. We have NO
+            // recovery path at this layer — the .mov is corrupt either way.
+            //
+            // Rather than failing the whole recording (the user already
+            // captured input + snapshots, which IS the macro), we delete
+            // the broken file, write a sidecar with the underlying error
+            // for /iterate diagnostics, and return false so the caller can
+            // mark the bundle as video-less in the manifest.
+            try? FileManager.default.removeItem(at: outputURL)
+            let sidecar = outputURL.deletingPathExtension().appendingPathExtension("failure.txt")
+            let underlyingMessage = writerError?.localizedDescription ?? "writer.status == .failed"
+            let body = """
+                AVAssetWriter.finishWriting() failed.
+                Underlying error: \(underlyingMessage)
+                Frames received: yes (sessionStarted was true at finish).
+                Likely cause: PTS / format / mid-stream-corruption issue
+                in the SCK → encoder pipe. Diagnose at /iterate.
+                """
+            try? body.data(using: .utf8)?.write(to: sidecar, options: .atomic)
+            return false
         }
+        return true
     }
 }
