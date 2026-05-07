@@ -78,5 +78,27 @@
 	     The full entitlements wizard is checklist item 3. -->
 	<key>NSScreenCaptureUsageDescription</key>
 	<string>macRo records the Roblox window so you can edit gameplay into a macro.</string>
+
+	<!-- ============================================================
+	     Sparkle 2.x auto-update configuration (item 11a)
+	     Spec ref: docs/spec.md > Distribution & release.
+	     SUPublicEDKey is a placeholder until Estevan generates the
+	     EdDSA keypair via Sparkle's `generate_keys` utility (bootstrap
+	     step). Until then, the app links + builds cleanly but the first
+	     auto-update check at runtime fails on the unresolvable public
+	     key — that's the intended deferred-bootstrap behavior; the
+	     fix is paste-in the real key, not graceful-degrade in code.
+	     SUFeedURL is HTTPS-only by hard contract (never http://).
+	     ============================================================ -->
+	<key>SUFeedURL</key>
+	<string>https://626labs.github.io/macRo/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>REPLACE_WITH_GENERATED_PUBLIC_KEY</string>
+	<key>SUEnableInstallerLauncherService</key>
+	<true/>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUScheduledCheckInterval</key>
+	<integer>86400</integer>
 </dict>
 </plist>

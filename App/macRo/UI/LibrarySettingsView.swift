@@ -1,10 +1,18 @@
 // LibrarySettingsView.swift
-// UI — feed URL override + per-macro auto-update toggles.
+// UI — feed URL override + per-macro auto-update toggles + Sparkle
+// auto-update controls (item 11a).
 //
 // 9c surface, presented as a sheet from `LibraryView`'s top-bar gear
 // icon. Lives in its own file so the settings layout doesn't bloat
 // `LibraryView`. Persistence is via UserDefaults keys defined on
 // `LibraryStore.Defaults` — nothing extra to wire.
+//
+// 11a expansion: the sheet now hosts a TabView with two tabs.
+//   • "Library" — original feed URL + auto-update list (unchanged
+//     content, just re-homed under a tab).
+//   • "Updates" — Sparkle auto-update toggles + "Check Now" + downgrade
+//     stub (UpdateSettingsView).
+// Single sheet, single gear icon, no duplicate Settings scenes.
 //
 // Validation: feed URL must be `https://` or `file://` (matches the
 // store's scheme allowlist). Inline error shown on commit; the field
@@ -22,20 +30,36 @@ struct LibrarySettingsView: View {
     @State private var feedURLError: String? = nil
 
     var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            TabView {
+                libraryTab
+                    .tabItem { Label("Library", systemImage: "books.vertical") }
+                UpdateSettingsView(updater: UpdaterHost.shared.updater)
+                    .tabItem { Label("Updates", systemImage: "arrow.triangle.2.circlepath") }
+            }
+            footer
+                .padding(MacRoTheme.Spacing.xl)
+        }
+        .frame(width: 600, height: 640)
+        .background(MacRoTheme.Color.bgPage)
+        .onAppear {
+            feedURLText = store.feedURL.absoluteString
+        }
+    }
+
+    // MARK: - Library tab
+
+    private var libraryTab: some View {
         VStack(alignment: .leading, spacing: MacRoTheme.Spacing.lg) {
             header
             feedURLSection
             Divider().background(MacRoTheme.Color.laneBorder)
             autoUpdateSection
             Spacer(minLength: 0)
-            footer
         }
         .padding(MacRoTheme.Spacing.xl)
-        .frame(width: 560, height: 580)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(MacRoTheme.Color.bgPage)
-        .onAppear {
-            feedURLText = store.feedURL.absoluteString
-        }
     }
 
     // MARK: - Header
