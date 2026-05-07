@@ -1,0 +1,10 @@
+{
+  "vibe-plugins": {
+    "source": {
+      "source": "github",
+      "repo": "estevanhernandez-stack-ed/vibe-plugins"
+    },
+    "installLocation": "C:\\Users\\estev\\.claude-personal/plugins/marketplaces/vibe-plugins",
+    "lastUpdated": "2026-05-06T18:52:32.638Z"
+  }
+}

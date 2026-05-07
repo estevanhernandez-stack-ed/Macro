@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2019-09/schema",
+  "$id": "https://vibe-iterate.626labs.dev/schemas/radar-cache.json",
+  "title": "vibe-iterate radar cache",
+  "description": "Per-project cache of weekly scheduled refresh. Lives at .vibe-iterate/radar.cache.json in the host project. Read by /vibe-iterate:radar and used as cheap first-pass scan by banner modes.",
+  "type": "object",
+  "required": ["refreshed_at", "framework_releases", "competitor_changes", "product_hunt_buzz"],
+  "additionalProperties": false,
+  "properties": {
+    "refreshed_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When this cache was last refreshed by the schedule plugin's cron"
+    },
+    "framework_releases": {
+      "type": "array",
+      "description": "Per-pin diff from current_pin to latest version, with highlights",
+      "items": {
+        "type": "object",
+        "required": ["package", "current_pin", "latest", "highlights", "codemod_available", "breaking"],
+        "additionalProperties": false,
+        "properties": {
+          "package": { "type": "string" },
+          "current_pin": { "type": "string" },
+          "latest": { "type": "string" },
+          "highlights": { "type": "array", "items": { "type": "string" } },
+          "codemod_available": { "type": "boolean" },
+          "breaking": { "type": "boolean" }
+        }
+      }
+    },
+    "competitor_changes": {
+      "type": "array",
+      "description": "Per-URL summary of recent competitor changelog/what's-new content",
+      "items": {
+        "type": "object",
+        "required": ["url", "fetched_at", "summary", "items"],
+        "additionalProperties": false,
+        "properties": {
+          "url": { "type": "string", "format": "uri" },
+          "fetched_at": { "type": "string", "format": "date-time" },
+          "summary": { "type": "string" },
+          "items": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "product_hunt_buzz": {
+      "type": "array",
+      "description": "Recent Product Hunt items in the project's category. May be empty.",
+      "items": {
+        "type": "object",
+        "required": ["name", "tagline", "url", "votes"],
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string" },
+          "tagline": { "type": "string" },
+          "url": { "type": "string", "format": "uri" },
+          "votes": { "type": "integer", "minimum": 0 }
+        }
+      }
+    }
+  }
+}

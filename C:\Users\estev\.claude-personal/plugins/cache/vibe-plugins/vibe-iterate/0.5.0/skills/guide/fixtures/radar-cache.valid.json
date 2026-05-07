@@ -1,0 +1,22 @@
+{
+  "refreshed_at": "2026-05-04T14:00:00Z",
+  "framework_releases": [
+    {
+      "package": "next",
+      "current_pin": "16.0.0",
+      "latest": "16.0.3",
+      "highlights": ["Patch: server actions race condition", "Patch: HMR memory leak"],
+      "codemod_available": false,
+      "breaking": false
+    }
+  ],
+  "competitor_changes": [
+    {
+      "url": "https://www.notion.so/blog/category/product",
+      "fetched_at": "2026-05-04T14:00:00Z",
+      "summary": "Notion shipped AI-powered tagging, faster mobile sync, dark mode improvements.",
+      "items": ["AI-powered tagging", "Faster mobile sync", "Dark mode improvements"]
+    }
+  ],
+  "product_hunt_buzz": []
+}

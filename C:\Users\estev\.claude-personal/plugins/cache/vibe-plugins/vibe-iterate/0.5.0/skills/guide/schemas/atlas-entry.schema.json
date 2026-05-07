@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2019-09/schema",
+  "$id": "https://vibe-iterate.626labs.dev/schemas/atlas-entry.json",
+  "title": "Atlas entry",
+  "description": "One JSONL line in .vibe-iterate/atlas.jsonl. Append-only ledger of every iteration considered, shipped, rejected.",
+  "type": "object",
+  "required": ["ts", "mode", "outcome", "title", "rationale", "rejected_runners_up", "pr"],
+  "additionalProperties": false,
+  "properties": {
+    "ts": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 UTC timestamp (e.g., 2026-05-04T15:30:00Z)"
+    },
+    "mode": {
+      "type": "string",
+      "enum": ["feature-add", "competitive", "ux-polish", "bug-bash", "ship", "upgrade"],
+      "description": "The command the user invoked"
+    },
+    "outcome": {
+      "type": "string",
+      "enum": ["shipped", "rejected", "queued"],
+      "description": "What happened with this iteration"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "description": "One-line iteration title"
+    },
+    "rationale": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Why this iteration; why this rank; why these runners-up"
+    },
+    "rejected_runners_up": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Iteration candidates considered but not picked. May be empty."
+    },
+    "pr": {
+      "type": ["string", "null"],
+      "description": "PR URL if outcome == shipped; null otherwise"
+    }
+  }
+}

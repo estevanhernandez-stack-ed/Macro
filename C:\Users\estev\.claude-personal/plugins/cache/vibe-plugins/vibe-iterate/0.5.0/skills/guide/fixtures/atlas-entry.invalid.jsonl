@@ -1,0 +1,4 @@
+{"mode":"feature-add","outcome":"shipped","title":"missing ts field"}
+{"ts":"not-a-valid-timestamp","mode":"feature-add","outcome":"shipped","title":"bad ts format","rationale":"x","rejected_runners_up":[],"pr":null}
+{"ts":"2026-05-04T15:30:00Z","mode":"unknown-mode","outcome":"shipped","title":"bad mode enum","rationale":"x","rejected_runners_up":[],"pr":null}
+{"ts":"2026-05-04T15:30:00Z","mode":"feature-add","outcome":"maybe","title":"bad outcome enum","rationale":"x","rejected_runners_up":[],"pr":null}

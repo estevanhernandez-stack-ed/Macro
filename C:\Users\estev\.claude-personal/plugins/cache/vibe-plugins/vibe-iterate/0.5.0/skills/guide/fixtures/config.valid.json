@@ -1,0 +1,14 @@
+{
+  "category": "AI-powered note-taking app",
+  "competitors": [
+    "https://www.notion.so/blog/category/product",
+    "https://obsidian.md/changelog",
+    "https://github.com/logseq/logseq/releases"
+  ],
+  "framework_pins": [
+    { "name": "next", "version": "16.0.3" },
+    { "name": "react", "version": "19.0.0" },
+    { "name": "tailwindcss", "version": "4.1.2" }
+  ],
+  "last_inferred_at": "2026-05-04T15:30:00Z"
+}
