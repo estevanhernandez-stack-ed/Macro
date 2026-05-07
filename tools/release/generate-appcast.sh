@@ -35,9 +35,13 @@ resolve_sign_update() {
     return 0
   fi
   local candidate
-  candidate="$(find "$REPO_ROOT" -path '*Sparkle*/bin/sign_update' -type f 2>/dev/null | head -n 1 || true)"
+  # Sparkle 2.9+ ships sign_update under SourcePackages/artifacts/sparkle/...,
+  # not SourcePackages/checkouts/Sparkle/bin/ (which only carries the legacy
+  # DSA scripts). The find below excludes old_dsa_scripts so we don't pick
+  # up the legacy DSA-only tool against an EdDSA key.
+  candidate="$(find "$HOME/Library/Developer/Xcode/DerivedData" -name sign_update -type f -not -path '*/old_dsa_scripts/*' 2>/dev/null | head -n 1 || true)"
   if [[ -z "$candidate" ]]; then
-    candidate="$(find "$HOME/Library/Developer/Xcode/DerivedData" -name sign_update -type f 2>/dev/null | head -n 1 || true)"
+    candidate="$(find "$REPO_ROOT" -name sign_update -type f -not -path '*/old_dsa_scripts/*' 2>/dev/null | head -n 1 || true)"
   fi
   if [[ -z "$candidate" ]]; then
     echo "::error::Could not locate Sparkle's sign_update utility. Resolve SPM dependencies first (xcodebuild -resolvePackageDependencies), then re-run." >&2
@@ -56,18 +60,21 @@ printf '%s' "$SPARKLE_ED_PRIVATE_KEY" > "$TMP_KEY"
 chmod 600 "$TMP_KEY"
 
 # ---------------------------------------------------------------------------
-# Pull the release list (newest-first by createdAt). Limit 50 — appcast
-# tends to keep history but Sparkle clients only ever look at the latest
-# versions per channel; 50 is plenty.
+# Pull the release list (newest-first by createdAt) directly from the GitHub
+# REST API — `gh release list --json` doesn't expose `assets` in older gh
+# CLI versions (and the runner version varies). The REST endpoint is stable.
+# Limit 50 — Sparkle clients only ever look at the latest versions per
+# channel; 50 is plenty of history.
+# (Backported from rororo-mac v0.1.0 bootstrap, 2026-05-07.)
 # ---------------------------------------------------------------------------
-RELEASES_JSON="$(gh release list \
-  --repo "$GITHUB_REPO" \
-  --limit 50 \
-  --json tagName,name,createdAt,assets,isPrerelease,url)"
-
-# Sort newest-first by createdAt (gh already returns this order, but make it
-# explicit so changes upstream don't silently reorder our feed).
-RELEASES_JSON="$(echo "$RELEASES_JSON" | jq 'sort_by(.createdAt) | reverse')"
+RELEASES_JSON="$(gh api "repos/$GITHUB_REPO/releases?per_page=50" \
+  --jq '[.[] | {
+    tagName: .tag_name,
+    name: (.name // .tag_name),
+    createdAt: .created_at,
+    isPrerelease: .prerelease,
+    assets: [.assets[] | {name: .name, url: .url, browser_download_url: .browser_download_url}]
+  }] | sort_by(.createdAt) | reverse')"
 
 # ---------------------------------------------------------------------------
 # Render appcast head.
