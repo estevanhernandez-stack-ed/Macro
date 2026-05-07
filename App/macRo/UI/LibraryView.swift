@@ -336,18 +336,18 @@ struct LibraryView: View {
         }
     }
 
-    /// Load + run a local entry via `Engine.shared.run`. Errors flip the
-    /// transient-error toast; the engine's RunHUD handles its own UI
-    /// surface from there.
+    /// Hand off to `ContentView`'s countdown → activate-Roblox → engine
+    /// chain. Engine's chokepoint refuses to synth events while macRo is
+    /// frontmost (spec § 6 safety rule), so calling `Engine.shared.run`
+    /// directly from a click-on-the-card surface would lock the engine
+    /// out before Roblox ever takes focus. The countdown gives the user
+    /// the same handoff beat as the recorder flow.
     private func runEntry(_ entry: LibraryEntry) {
-        Task {
-            do {
-                let bundle = try MacroBundle.load(at: entry.bundleURL)
-                try await Engine.shared.run(bundle)
-            } catch {
-                transientError = error.localizedDescription
-            }
-        }
+        NotificationCenter.default.post(
+            name: LibraryView.runRequested,
+            object: nil,
+            userInfo: ["bundleURL": entry.bundleURL]
+        )
     }
 
     // MARK: - Empty state
@@ -405,6 +405,14 @@ struct LibraryView: View {
     /// game-pick → countdown → recorder chain). Public + static so
     /// observers can match on the same name.
     static let startRecordingRequested = Notification.Name("macRo.LibraryView.startRecordingRequested")
+
+    /// Notification fired when a library card's primary "Run" action
+    /// fires. `userInfo["bundleURL"]: URL` carries the bundle to run.
+    /// `ContentView` observes and runs the countdown → activate-Roblox
+    /// → `Engine.shared.run` chain — the same handoff the recorder uses,
+    /// because the engine's chokepoint refuses to synth events while
+    /// macRo is frontmost.
+    static let runRequested = Notification.Name("macRo.LibraryView.runRequested")
 }
 
 // MARK: - Card view
