@@ -60,15 +60,26 @@ struct MacRoApp: App {
                 // first window is on-screen. NSApp.windows is non-empty
                 // by this point.
                 if abortMonitor == nil {
-                    abortMonitor = AppShortcutMonitor(onAbort: {
-                        Engine.shared.abort(reason: .userHotkey)
-                        // Recorder.shared.abort() is async-throws; fire-and-forget into a
-                        // Task. Idempotent — abort() is documented safe-from-any-state.
-                        // Engine + Recorder cannot both be active at once (Engine refuses
-                        // to start while a recording is running per item 5's chokepoint),
-                        // so the calls don't conflict — they're parallel safety surfaces.
-                        Task { try? await Recorder.shared.abort() }
-                    })
+                    abortMonitor = AppShortcutMonitor(
+                        onAbort: {
+                            Engine.shared.abort(reason: .userHotkey)
+                            // Recorder.shared.abort() is async-throws; fire-and-forget into a
+                            // Task. Idempotent — abort() is documented safe-from-any-state.
+                            // Engine + Recorder cannot both be active at once (Engine refuses
+                            // to start while a recording is running per item 5's chokepoint),
+                            // so the calls don't conflict — they're parallel safety surfaces.
+                            Task { try? await Recorder.shared.abort() }
+                            // Also broadcast so ContentView can clear a pending arm
+                            // (no engine running yet, nothing for Engine.abort to act on).
+                            NotificationCenter.default.post(name: .appShortcutAbortPressed, object: nil)
+                        },
+                        onEngage: {
+                            // ContentView observes; when an entry is armed, fires
+                            // the engine. When nothing is armed, no-op (the user
+                            // hit the hotkey on accident).
+                            NotificationCenter.default.post(name: .appShortcutEngagePressed, object: nil)
+                        }
+                    )
                 }
 
                 // Boot Sparkle's updater. Idempotent — second call no-ops.
@@ -109,6 +120,16 @@ struct MacRoApp: App {
             }
         }
     }
+}
+
+// MARK: - Notification names
+
+/// Posted by `AppShortcutMonitor`'s `onAbort` callback. ContentView
+/// observes to clear any pending arm (the engine call inside onAbort
+/// already handles a running engine).
+extension Notification.Name {
+    static let appShortcutAbortPressed = Notification.Name("macRo.AppShortcut.abortPressed")
+    static let appShortcutEngagePressed = Notification.Name("macRo.AppShortcut.engagePressed")
 }
 
 // MARK: - Check for Updates menu item

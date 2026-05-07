@@ -1,10 +1,15 @@
 // AppShortcutMonitor.swift
-// Domain — global keyboard shortcut monitor for the abort hotkey.
+// Domain — global keyboard shortcut monitor for abort + engage hotkeys.
 //
-// Registers `⌃⌥⌘.` (Control+Option+Command+Period) as a global
-// NSEvent monitor at app launch. Fires Engine.shared.abort(reason:
-// .userHotkey) regardless of which app has focus — even if Roblox is
-// frontmost and capturing every other keystroke.
+// Registers two global NSEvent monitors at app launch:
+//   • ⌃⌥⌘. (period) — abort. Fires onAbort regardless of focus.
+//   • ⌃⌥⌘, (comma)  — engage / cancel-arm. Fires onEngage. The hotkey
+//     is intentionally a single key that doubles as start (when an
+//     entry is armed) and cancel-arm (when no engine is running yet).
+//     The engine's chokepoint refuses synthesis while macRo is
+//     frontmost, so an armed-then-engage handoff lets the user click
+//     Run from the Library, switch to Roblox at their own pace, and
+//     fire the engine from inside Roblox without needing a countdown.
 //
 // Spec ref: docs/superpowers/specs/2026-05-03-macro-mac-app-design.md § 6
 // (abort surfaces) + docs/spec.md > Engine + docs/prd.md > Epic D.
@@ -32,10 +37,14 @@ public final class AppShortcutMonitor {
     /// truth (`kVK_ANSI_Period == 0x2F`).
     private static let periodVirtualKey: UInt16 = 0x2F
 
-    /// Modifier mask for ⌃⌥⌘. We compare against the masked event flags
-    /// rather than equality to allow incidental modifiers (e.g., caps
-    /// lock state) to vary without breaking the hotkey.
-    private static let abortModifiers: NSEvent.ModifierFlags = [.control, .option, .command]
+    /// Virtual key code for `,` (comma). `kVK_ANSI_Comma == 0x2B`.
+    private static let commaVirtualKey: UInt16 = 0x2B
+
+    /// Shared modifier mask for both hotkeys. We compare against the
+    /// masked event flags rather than equality to allow incidental
+    /// modifiers (e.g., caps lock state) to vary without breaking the
+    /// hotkey match.
+    private static let hotkeyModifiers: NSEvent.ModifierFlags = [.control, .option, .command]
 
     // MARK: - State
 
@@ -49,9 +58,14 @@ public final class AppShortcutMonitor {
     /// with the RunHUD overlay.
     private var localMonitor: Any?
 
-    /// Callback fired on hotkey match. Set at init; engine wiring
-    /// passes `Engine.shared.abort(reason: .userHotkey)`.
+    /// Callback fired on `⌃⌥⌘.`. Engine wiring passes
+    /// `Engine.shared.abort(reason: .userHotkey)`.
     private let onAbort: () -> Void
+
+    /// Callback fired on `⌃⌥⌘,`. Engine wiring posts a notification
+    /// that ContentView observes to fire the armed bundle (or cancel
+    /// the arm if no bundle is queued).
+    private let onEngage: () -> Void
 
     // MARK: - Init
 
@@ -59,8 +73,12 @@ public final class AppShortcutMonitor {
     /// installation does not surface errors at the API layer; if
     /// Accessibility was revoked the global monitor silently no-ops, but
     /// the local monitor still works.
-    public init(onAbort: @escaping () -> Void) {
+    public init(
+        onAbort: @escaping () -> Void,
+        onEngage: @escaping () -> Void = {}
+    ) {
         self.onAbort = onAbort
+        self.onEngage = onEngage
         installGlobalMonitor()
         installLocalMonitor()
     }
@@ -103,9 +121,12 @@ public final class AppShortcutMonitor {
     }
 
     private func handle(_ event: NSEvent) {
-        guard event.keyCode == Self.periodVirtualKey else { return }
         let mods = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-        guard mods.contains(Self.abortModifiers) else { return }
-        onAbort()
+        guard mods.contains(Self.hotkeyModifiers) else { return }
+        switch event.keyCode {
+        case Self.periodVirtualKey: onAbort()
+        case Self.commaVirtualKey:  onEngage()
+        default: return
+        }
     }
 }

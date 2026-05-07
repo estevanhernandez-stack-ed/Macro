@@ -59,6 +59,12 @@ struct ContentView: View {
     /// until every pending plugin has had a decision (Allow or Remove).
     @State private var showingTrustWarning: Bool = false
 
+    /// Bundle queued by a Library "Run" click. Set when ArmedOverlayPanel
+    /// is showing; cleared on engage (engine fires) or cancel (Esc / abort
+    /// hotkey / overlay dismissal). Drives the "is the engine armed?"
+    /// state that the global engage hotkey acts on.
+    @State private var armedBundle: MacroBundleData?
+
     var body: some View {
         ZStack {
             MacRoTheme.Color.bgPage
@@ -102,7 +108,16 @@ struct ContentView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: LibraryView.runRequested)) { note in
             guard let url = note.userInfo?["bundleURL"] as? URL else { return }
-            presentCountdownThenRun(bundleURL: url)
+            armEngine(bundleURL: url)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .appShortcutEngagePressed)) { _ in
+            engageArmedBundle()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .appShortcutAbortPressed)) { _ in
+            // Abort hotkey while armed = cancel the arm. If the engine
+            // is running, AppShortcutMonitor's onAbort already called
+            // Engine.shared.abort; we just need to clear the pending arm.
+            cancelArm()
         }
         .sheet(isPresented: $showingGamePick) {
             GamePickSheet(
@@ -321,15 +336,16 @@ struct ContentView: View {
         return "Saved to \(url.lastPathComponent). It's now in your Library — Run it from there or right-click for editor / rollback / delete."
     }
 
-    /// Run-from-Library handoff. Mirrors `presentCountdown(for:)` but for
-    /// engine playback: countdown → activate-Roblox → `Engine.shared.run`.
-    /// The chokepoint in `Engine` refuses to synth events while macRo is
-    /// frontmost (spec § 6 safety rule), so this beat gives Roblox time
-    /// to take focus before pre-flight runs. Errors surface via the
-    /// engine's `RunHUD` state badge (item 5b) rather than ContentView's
-    /// alert chrome — keeps the engine's failure surface consistent
-    /// regardless of how playback was launched.
-    private func presentCountdownThenRun(bundleURL: URL) {
+    /// Run-from-Library, step 1: arm the engine. Loads the bundle, shows
+    /// the ArmedOverlayPanel listing required keybinds, and parks. The
+    /// engine doesn't fire until the user presses the engage hotkey
+    /// (⌃⌥⌘,) — likely from inside Roblox. Cancel via Esc or ⌃⌥⌘.
+    private func armEngine(bundleURL: URL) {
+        // Already armed? Treat re-click as cancel-then-rearm.
+        if armedBundle != nil {
+            cancelArm()
+        }
+
         let bundle: MacroBundleData
         do {
             bundle = try MacroBundle.load(at: bundleURL)
@@ -340,49 +356,50 @@ struct ContentView: View {
             return
         }
 
-        // Resolve the game from the manifest's placeId via the plugin
-        // index. Fall back to `.untagged` when no plugin matches — the
-        // countdown still renders ("Switch to Roblox in 3…2…1…") and the
-        // engine's pre-flight handles the missing-plugin case.
-        let game: GameSelection = {
-            guard let placeId = bundle.manifest.game?.placeId else {
-                return .untagged
-            }
-            if let plugin = PluginLoader.shared.plugin(forPlaceId: placeId) {
-                return .plugin(GameSelection.PluginPick(
-                    id: plugin.id,
-                    displayName: plugin.displayName,
-                    placeId: plugin.placeId,
-                    windowClass: plugin.windowClass,
-                    windowTitleMatch: plugin.windowTitleMatch
-                ))
-            }
-            if placeId == 8737899170 { return .ps99 }
-            return .untagged
-        }()
+        let bindingRows: [ArmedOverlayViewModel.BindingRow] = (bundle.manifest.requires?.bindings ?? []).map { req in
+            ArmedOverlayViewModel.BindingRow(
+                id: req.action,
+                action: req.action,
+                key: req.expected
+            )
+        }
 
-        CountdownOverlayPanel.show(
-            game: game,
-            onComplete: {
-                Task { @MainActor in
-                    activateRoblox()
-                    do {
-                        try await Engine.shared.run(bundle)
-                    } catch {
-                        // Engine errors surface via RunHUD's state badge.
-                        // Bubble unexpected non-Engine errors to the
-                        // recorder-failure alert so they don't disappear.
-                        recorderFailure = RecorderFailureBox(
-                            error: .captureStartFailed(message: error.localizedDescription)
-                        )
-                    }
-                }
-            },
+        armedBundle = bundle
+        ArmedOverlayPanel.show(
+            macroName: bundle.manifest.name,
+            bindings: bindingRows,
             onCancel: {
-                // User hit Escape during countdown — return to idle, no
-                // engine fire. Same as recorder cancel path.
+                cancelArm()
             }
         )
+    }
+
+    /// Run-from-Library, step 2: engage. Triggered by the global engage
+    /// hotkey (⌃⌥⌘,) via NotificationCenter. Activates Roblox + fires
+    /// the engine against the armed bundle. Engine errors surface via
+    /// RunHUD's state badge (item 5b).
+    private func engageArmedBundle() {
+        guard let bundle = armedBundle else { return }
+        armedBundle = nil
+        ArmedOverlayPanel.dismiss()
+        Task { @MainActor in
+            activateRoblox()
+            do {
+                try await Engine.shared.run(bundle)
+            } catch {
+                recorderFailure = RecorderFailureBox(
+                    error: .captureStartFailed(message: error.localizedDescription)
+                )
+            }
+        }
+    }
+
+    /// Cancel a pending arm. Idempotent — safe to call when nothing is
+    /// armed. Closes the overlay panel if open.
+    private func cancelArm() {
+        guard armedBundle != nil || ArmedOverlayPanel.isShowing else { return }
+        armedBundle = nil
+        ArmedOverlayPanel.dismiss()
     }
 }
 
