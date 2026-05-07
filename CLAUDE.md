@@ -7,7 +7,7 @@ macRo is the Mac macro maker for Roblox. Native Swift/SwiftUI app first; TS/Bun 
 **The spec is the source of truth for *what* we're building.** This file is *how to work in this repo*. When the two diverge, the spec wins — fix CLAUDE.md, don't rewrite the spec from memory.
 
 - **Design spec:** [docs/superpowers/specs/2026-05-03-macro-mac-app-design.md](docs/superpowers/specs/2026-05-03-macro-mac-app-design.md)
-- **Status:** v1 design locked. Implementation pending. Next move is `/vibe-cartographer:scope` to enter the VC build flow.
+- **Status:** v1 implementation complete (items 1–12). xcodebuild green. First DMG ships at `v0.1.0` after the four-step bootstrap (Sparkle EdDSA keypair, Apple Developer ID cert, notarization creds, GitHub Pages enablement) — see [`tools/release/README.md`](tools/release/README.md).
 
 ---
 
@@ -41,12 +41,14 @@ When designing new screens, invoke the `626labs-design` skill rather than re-der
 | `.claude/` | Claude Code project config. `settings.local.json` is local-only; future `agents/`, `rules/`, `hooks/` are committed. |
 | `.superpowers/` *(gitignored)* | Brainstorm session artifacts (mockups, visual companion screens). Useful local context; never commit. |
 | `schema/macro.schema.yaml` | Single source of truth for the `.macro` bundle schema. Swift `MacroFormat` + (later) TS schema types codegen from this. |
-| `App/` | Swift / SwiftUI app source. XcodeGen project at `App/project.yml` (the `.xcodeproj` is gitignored — regen with `cd App && xcodegen generate`). Layered: native services → domain (Recorder, Engine, MacroBundle, LibraryStore, Permissions, PluginLoader) → UI. `App/macRo/Schema/MacroFormat.swift` is GENERATED — never hand-edit. |
+| `App/` | Swift / SwiftUI app source. XcodeGen project at `App/project.yml` (the `.xcodeproj` is gitignored — regen with `cd App && xcodegen generate`). Layered: native services (`SCKCapture`, `EventTap`, `Encoder`, `WindowDetector`) → domain (`Recorder`, `Engine`, `MacroBundle`, `LibraryStore`, `Permissions`, `PluginLoader`, `UpdaterHost`) → UI (`OnboardingView`, `RecorderHUD`, `EditorView` + lanes, `LibraryView`, `RunHUD`, `BindingMismatchPrompt`, `UpdateDriftPrompt`, `UpdateSettingsView`, `FirstLaunchTrustWarning`). `App/macRo/Schema/MacroFormat.swift` is GENERATED — never hand-edit. |
 | `tools/codegen/` | Bun/TypeScript schema codegen. Reads `schema/macro.schema.yaml`, writes `App/macRo/Schema/MacroFormat.swift`. See `tools/codegen/README.md` for mapping decisions. |
-| `games/pet-sim-99/` *(planned)* | First plugin. `plugin.yaml` + `seed-macros/` + README. |
+| `games/pet-sim-99/` | First plugin. `plugin.yaml` + 5 hand-authored seed macros under `seed-macros/`. Stub gate PNGs (1x1 RGBA) hold the slots until real PS99 captures land at the empirical-verification pass. |
 | `tools/factory/` *(planned)* | TS/Bun factory pipeline. Empty in v1; gets its own spec. TS schema-types codegen will share `tools/codegen/` infra. |
-| `tools/release/` *(planned)* | Notarization scripts + appcast generation. |
+| `tools/release/` | Notarization (`notarize.sh`), appcast generation (`generate-appcast.sh`), exportOptions plist, bootstrap doc (`README.md`). |
+| `.env.example` | Every env var the release pipeline consumes — placeholder values + comments. Real values live in GitHub Secrets / 1Password. |
 | `.github/workflows/ci.yml` | Schema-vs-types lockstep guard + Xcode build on macos-latest. Drift fails CI. |
+| `.github/workflows/release.yml` | Tag-driven release pipeline. Triggers on `v*`. Imports cert, runs notarize.sh, attaches DMG, regenerates appcast, publishes to gh-pages. CI is red until the four bootstrap steps land — see `tools/release/README.md`. |
 
 Anything marked *(planned)* is described in the spec but not yet on disk.
 
@@ -75,9 +77,12 @@ Detailed architecture, schema, file format, playback engine semantics, and risk 
 | Log a significant decision | `mcp__626Labs__manage_decisions log` (when Dashboard MCP is connected) |
 | Bind this repo to the 626Labs Dashboard | `mcp__626Labs__manage_projects findByRepo` with the remote URL (when MCP is connected) |
 | Generate Swift types from the schema | `bun run codegen` from repo root (writes `App/macRo/Schema/MacroFormat.swift`). TS factory types regen will share the same script when `tools/factory/` lands. |
-| Run the Mac app dev build *(planned)* | `xed App.xcodeproj` |
+| Open the Mac app in Xcode | `cd App && xcodegen generate && xed macRo.xcodeproj` |
+| Build the Mac app from CLI | `xcodebuild -project App/macRo.xcodeproj -scheme macRo build` |
+| Run tests | `xcodebuild -project App/macRo.xcodeproj -scheme macRo test -destination 'platform=macOS,arch=x86_64'` |
+| Record + edit + replay flow (in-app) | Onboarding → Library → Start Recording → Game pick (PS99 / Untagged) → 3-2-1 countdown → record → Stop → 3-option post-record sheet (Save / Save as loop / Open in Editor) → Editor walks 4 lanes → Save → Library card grid → Run. Abort hotkey: `⌃⌥⌘.` |
 | Run the factory locally *(planned)* | `bun run dev` from `tools/factory/` |
-| Build, sign, and notarize a release *(planned)* | `tools/release/notarize.sh` (or the GitHub Actions release workflow on `v*` tags) |
+| Build, sign, and notarize a release | `tools/release/notarize.sh` locally (after env vars are set), or push a `v*` tag to fire `.github/workflows/release.yml`. Bootstrap is one-time; see `tools/release/README.md`. |
 
 ---
 
@@ -98,11 +103,13 @@ Significant decisions log to the **626Labs Dashboard** via MCP (`mcp__626Labs__m
 Especially:
 
 - **Schema changes** — anything that bumps `schemaVersion`, adds/removes a field on `manifest.yaml` or `timeline.yaml`, or alters a gate kind. The schema is the contract between three subsystems.
-- **Plugin model decisions** — what's game-agnostic vs game-specific, how the plugin loader resolves conflicts, trust model for community plugins.
-- **Engine semantics** — gate retry policy, frame-rate scaling caps, abort surfaces, safety rules.
+- **Plugin model decisions** — what's game-agnostic vs game-specific, how the plugin loader resolves conflicts (bundled wins on `placeId` collision), trust model for community plugins (`isUnsigned: true` for user-installed / url-installed, surfaced via `firstLaunchWarningPending`).
+- **Engine semantics** — gate retry policy, frame-rate scaling caps (clamped 0.5x–2x at dispatch), abort surfaces (`⌃⌥⌘.` global hotkey, `Engine.shared.abort(reason:)` from any thread), safety rules (chokepoint refuses to synth while macRo frontmost; positional events clamped to window content rect).
 - **Factory architecture choices** (when B begins) — patch candidate generation, scoring criteria, rollback behavior.
 - **Visual treatment exceptions** — anywhere we deliberately diverge from the 626Labs design system or the established Sanduhr für Claude precedent.
-- **Telemetry posture** — any change at all to "no telemetry, ever" requires a logged decision and an explicit user-facing disclosure.
+- **Telemetry posture** — any change at all to "no telemetry, ever" requires a logged decision and an explicit user-facing disclosure. `SUEnableSystemProfiling` MUST stay absent from `Info.plist`.
+- **Sparkle EdDSA key handling** — keypair generation, rotation, recovery (one-way break — losing the private key forces every existing client off the update channel), CI secret upload. Bootstrap doc: `tools/release/README.md`.
+- **Library install / drift / rollback semantics** — SHA-256 verification on every download, `.installhash` sidecar as the drift baseline, `.versions/` rolling cap of 3 per macro, `factoryPatchable` opt-in is sacred.
 
 Skip the routine: ran tests, fixed a typo, renamed an internal variable.
 
