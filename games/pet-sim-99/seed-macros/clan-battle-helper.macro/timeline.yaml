@@ -1,0 +1,11 @@
+# Placeholder authoring — Estevan briefs the canonical PS99 clan-battle
+# sequence post-CHECKPOINT debt pass; this stays valid until then so the
+# bundle parses + loads cleanly. A single keyDown/keyUp pair on the
+# pet-inventory key is the minimum that exercises the round-trip.
+events:
+  - kind: keyDown
+    t: 0.0
+    key: "p"
+  - kind: keyUp
+    t: 0.05
+    key: "p"

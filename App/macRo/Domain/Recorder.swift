@@ -62,23 +62,68 @@ import Yams
 // MARK: - GameSelection
 
 /// What game the user is recording for. Drives the manifest's `game.name`,
-/// `target.windowClass`, and `target.windowTitleMatch`. The PluginLoader
-/// (item 10) will replace this enum with a richer plugin-driven type;
-/// for v1 the two known cases are inlined here.
+/// `target.windowClass`, and `target.windowTitleMatch`.
+///
+/// 10c added the `.plugin(...)` case so GamePickSheet can surface every
+/// PluginLoader-indexed plugin without a code change per game. `.ps99`
+/// and `.untagged` stay around for callsite stability (CountdownOverlay
+/// + tests still construct `.ps99` directly), and PS99's placeId-flavored
+/// behavior continues to work exactly as before. Bundled PS99 picked
+/// from the sheet flows through as `.plugin(ps99Plugin)` carrying the
+/// same `placeId` / `windowClass` / `displayName` / `slug` data.
 public enum GameSelection: Equatable, Sendable {
-    /// Pet Simulator 99 — placeId 8737899170. v1 anchor game.
+    /// Pet Simulator 99 — placeId 8737899170. v1 anchor game. Kept for
+    /// callsite stability.
     case ps99
     /// Generic Roblox window — no game-specific selectors.
     case untagged
+    /// Plugin-driven selection. Carries the indexed plugin's id,
+    /// displayName, placeId, windowClass, windowTitleMatch.
+    case plugin(PluginPick)
 
-    /// Canonical Roblox window matchers. Both selections target the
-    /// Roblox client; PS99 narrows the title regex once the user is in
-    /// the place.
-    public var windowClass: [String] {
-        return ["Roblox", "com.Roblox.client"]
+    /// Snapshot of the fields a Recorder needs from a `Plugin`. Carried
+    /// in the enum case so `GameSelection` stays `Sendable` + `Equatable`
+    /// without importing `Plugin`'s full surface (and without dragging
+    /// `@MainActor` isolation onto the recorder queue).
+    public struct PluginPick: Equatable, Sendable, Hashable {
+        public let id: String
+        public let displayName: String
+        public let placeId: Int
+        public let windowClass: [String]
+        public let windowTitleMatch: String?
+
+        public init(
+            id: String,
+            displayName: String,
+            placeId: Int,
+            windowClass: [String],
+            windowTitleMatch: String?
+        ) {
+            self.id = id
+            self.displayName = displayName
+            self.placeId = placeId
+            self.windowClass = windowClass
+            self.windowTitleMatch = windowTitleMatch
+        }
     }
 
-    /// Title regex passed to WindowDetector. **Both PS99 and untagged
+    /// Canonical Roblox window matchers. Plugins override with their own
+    /// `windowClass`; ps99 + untagged keep the historical default array
+    /// (both `Roblox` and `com.Roblox.client` so different Roblox client
+    /// builds match).
+    public var windowClass: [String] {
+        switch self {
+        case .ps99, .untagged:
+            return ["Roblox", "com.Roblox.client"]
+        case .plugin(let pick):
+            // If a plugin yaml ships only `["Roblox"]`, that's the right
+            // matcher for Roblox-on-Mac; we don't synthesize the
+            // com.Roblox.client variant unless the plugin asked for it.
+            return pick.windowClass
+        }
+    }
+
+    /// Title regex passed to WindowDetector. **For ps99 and untagged we
     /// match on "Roblox"** — the macOS Roblox client window title is
     /// always just "Roblox" regardless of which place is loaded; the
     /// game name is rendered INSIDE the Roblox window content area,
@@ -86,8 +131,18 @@ public enum GameSelection: Equatable, Sendable {
     /// PS99 specifically (8737899170); window matching is the same for
     /// every Roblox game on Mac. Pre-2026-05-05 this returned
     /// "Pet Simulator 99" for `.ps99` and never matched in practice.
+    /// Plugins can declare a richer regex via `plugin.yaml`'s
+    /// `windowTitleMatch` field.
     public var windowTitleMatch: String {
-        return "Roblox"
+        switch self {
+        case .ps99, .untagged:
+            return "Roblox"
+        case .plugin(let pick):
+            // Default to "Roblox" if the plugin didn't override — matches
+            // the legacy behavior so any future plugin without a regex
+            // still finds the Roblox window.
+            return pick.windowTitleMatch ?? "Roblox"
+        }
     }
 
     /// Display name for `manifest.game.name`.
@@ -95,6 +150,7 @@ public enum GameSelection: Equatable, Sendable {
         switch self {
         case .ps99:    return "Pet Simulator 99"
         case .untagged: return "Roblox"
+        case .plugin(let pick): return pick.displayName
         }
     }
 
@@ -103,6 +159,7 @@ public enum GameSelection: Equatable, Sendable {
         switch self {
         case .ps99:    return 8737899170
         case .untagged: return nil
+        case .plugin(let pick): return pick.placeId
         }
     }
 
@@ -111,6 +168,7 @@ public enum GameSelection: Equatable, Sendable {
         switch self {
         case .ps99:    return "pet-sim-99"
         case .untagged: return "untagged"
+        case .plugin(let pick): return pick.id
         }
     }
 }

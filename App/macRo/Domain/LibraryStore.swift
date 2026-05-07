@@ -1102,3 +1102,165 @@ public struct RollbackVersion: Identifiable, Hashable, Sendable {
         self.storedAt = storedAt
     }
 }
+
+// MARK: - Seed install (item 10c)
+
+@MainActor
+extension LibraryStore {
+
+    /// UserDefaults key prefix marking a bundled plugin's seed-macros as
+    /// installed into the user library. Idempotent guard — prevents the
+    /// post-onboarding `.task { … }` from re-copying every launch.
+    nonisolated public static let seedsInstalledKeyPrefix = "macRo.seedsInstalled."
+
+    /// Returns the per-plugin seeds-installed UserDefaults key.
+    nonisolated public static func seedsInstalledKey(for pluginId: String) -> String {
+        return seedsInstalledKeyPrefix + pluginId
+    }
+
+    /// Copies seed macros from each bundled plugin into the user library.
+    /// Called from OnboardingView's "Continue" handler after both
+    /// permissions are granted, and from App.swift's post-onboarding
+    /// `.task { … }` on subsequent launches (idempotent — UserDefaults
+    /// flag prevents re-copy).
+    ///
+    /// Bundled seeds do NOT receive `.installhash` sidecars — they aren't
+    /// from the remote feed and aren't drift-managed. A user editing a
+    /// bundled seed in place is treated as a normal local edit; the
+    /// factory pipeline (Subsystem B) won't auto-patch them either.
+    ///
+    /// Edge cases:
+    /// - Empty `seedMacros[]` → flag flipped, no-op.
+    /// - Missing `<seedDir>/<slug>.macro` → recorded in `lastError`,
+    ///   continue with the rest. Doesn't bail out the whole install.
+    /// - Existing destination → skipped (idempotent at file level too).
+    public func installSeedsFromBundledPlugins() async {
+        // Snapshot inputs on MainActor; do the file IO off-main.
+        let bundledPlugins = PluginLoader.shared.plugins.filter { $0.source == .bundled }
+        let libraryRoot = self.libraryRootURL
+
+        // Build the per-plugin work list: (pluginId, seedDir, libraryDest,
+        // seedSlugs[], alreadyInstalledFlag). Worker copies what needs
+        // copying and reports what flags to flip.
+        struct PluginWork: Sendable {
+            let pluginId: String
+            let seedDir: URL
+            let libraryDest: URL
+            let seedSlugs: [String]
+            let flagAlreadySet: Bool
+        }
+        let workList: [PluginWork] = bundledPlugins.map { plugin in
+            PluginWork(
+                pluginId: plugin.id,
+                seedDir: plugin.seedMacrosDirectoryURL,
+                libraryDest: libraryRoot.appendingPathComponent(plugin.id, isDirectory: true),
+                seedSlugs: plugin.seedMacros,
+                flagAlreadySet: UserDefaults.standard.bool(
+                    forKey: Self.seedsInstalledKey(for: plugin.id)
+                )
+            )
+        }
+
+        struct InstallResult: Sendable {
+            let pluginId: String
+            let didInstall: Bool
+            let firstError: LibraryError?
+        }
+
+        let results = await Task.detached(priority: .utility) { () -> [InstallResult] in
+            let fm = FileManager.default
+            var out: [InstallResult] = []
+            for work in workList {
+                if work.flagAlreadySet {
+                    out.append(InstallResult(pluginId: work.pluginId, didInstall: false, firstError: nil))
+                    continue
+                }
+
+                // Empty seed list — set the flag so we don't re-walk this
+                // plugin every launch. Clean operation.
+                if work.seedSlugs.isEmpty {
+                    out.append(InstallResult(pluginId: work.pluginId, didInstall: true, firstError: nil))
+                    continue
+                }
+
+                // Ensure destination dir exists.
+                do {
+                    try fm.createDirectory(at: work.libraryDest, withIntermediateDirectories: true)
+                } catch {
+                    out.append(InstallResult(
+                        pluginId: work.pluginId,
+                        didInstall: false,
+                        firstError: .libraryDirectoryUnreachable
+                    ))
+                    continue
+                }
+
+                var firstError: LibraryError?
+                for slug in work.seedSlugs {
+                    let source = work.seedDir.appendingPathComponent("\(slug).macro", isDirectory: true)
+                    let destination = work.libraryDest.appendingPathComponent("\(slug).macro", isDirectory: true)
+
+                    // Source missing — non-fatal. Record the first such
+                    // miss as a deleteFailed (re-using the case for "IO
+                    // ops on a path that didn't pan out"). The rest of
+                    // the seeds for this plugin still try.
+                    guard fm.fileExists(atPath: source.path) else {
+                        if firstError == nil {
+                            firstError = .deleteFailed(
+                                source,
+                                message: "Seed macro \(slug).macro missing under bundled plugin \(work.pluginId)"
+                            )
+                        }
+                        FileHandle.standardError.write(Data(
+                            "LibraryStore: seed \(slug).macro missing for \(work.pluginId) — skipped\n".utf8
+                        ))
+                        continue
+                    }
+
+                    // Destination already exists — skip (idempotent at
+                    // the file level, in case the flag was cleared but
+                    // the bundle is still on disk).
+                    if fm.fileExists(atPath: destination.path) {
+                        continue
+                    }
+
+                    do {
+                        try fm.copyItem(at: source, to: destination)
+                    } catch {
+                        if firstError == nil {
+                            firstError = .deleteFailed(destination, message: error.localizedDescription)
+                        }
+                        FileHandle.standardError.write(Data(
+                            "LibraryStore: failed to copy seed \(slug).macro for \(work.pluginId): \(error.localizedDescription)\n".utf8
+                        ))
+                    }
+                }
+
+                out.append(InstallResult(
+                    pluginId: work.pluginId,
+                    didInstall: true,
+                    firstError: firstError
+                ))
+            }
+            return out
+        }.value
+
+        // Surface the first error (if any) and flip the per-plugin flags
+        // for plugins where we ran the install pass.
+        var firstError: LibraryError?
+        for result in results {
+            if firstError == nil, let err = result.firstError { firstError = err }
+            if result.didInstall {
+                UserDefaults.standard.set(
+                    true,
+                    forKey: Self.seedsInstalledKey(for: result.pluginId)
+                )
+            }
+        }
+        if let firstError {
+            self.lastError = firstError
+        }
+
+        await reloadLocalInventory()
+    }
+}

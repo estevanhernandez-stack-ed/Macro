@@ -1,0 +1,26 @@
+id: auto-fuse-pets
+name: Auto Fuse Pets
+description: Fuses pets in batches; stops when none remain. Demonstrates the subs + stopOn combo — a fuseOne sub-macro is invoked in a loop, stopOn exits when "no more pets" UI cue appears.
+author: 626 Labs (PS99 plugin seed)
+version: 1.0.0
+schemaVersion: 1
+factoryPatchable: true
+recordedFrameRate: 60
+game:
+  placeId: 8737899170
+  name: Pet Simulator 99
+target:
+  windowClass:
+    - Roblox
+  windowTitleMatch: "Pet Simulator 99|Roblox"
+  coordinateSpace: window
+  recordedResolution:
+    width: 1920
+    height: 1080
+  resolutionPolicy: scale
+requires:
+  bindings:
+    - action: auto-fuse
+      expected: "f"
+    - action: pet-inventory
+      expected: "p"

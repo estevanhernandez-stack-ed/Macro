@@ -1,0 +1,26 @@
+id: auto-hatch
+name: Auto Hatch
+description: Loops the egg-hatch sequence; stops on Mythic. Demonstrates loop + delayMs + stopOn block triggered by a Mythic-pet UI cue.
+author: 626 Labs (PS99 plugin seed)
+version: 1.0.0
+schemaVersion: 1
+factoryPatchable: true
+recordedFrameRate: 60
+game:
+  placeId: 8737899170
+  name: Pet Simulator 99
+target:
+  windowClass:
+    - Roblox
+  windowTitleMatch: "Pet Simulator 99|Roblox"
+  coordinateSpace: window
+  recordedResolution:
+    width: 1920
+    height: 1080
+  resolutionPolicy: scale
+requires:
+  bindings:
+    - action: open-egg
+      expected: "e"
+    - action: hatch
+      expected: "h"

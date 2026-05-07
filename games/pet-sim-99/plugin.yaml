@@ -1,0 +1,33 @@
+# Pet Simulator 99 — game plugin (item 10b)
+#
+# First-class plugin shipped bundled with macRo. Trust model: bundled => trusted
+# (PluginLoader.Plugin.isUnsigned == false). Conforms to schema/plugin.schema.yaml.
+#
+# Note on placeholder bindings: the values below are reasonable defaults that
+# map to common Roblox/PS99 hotkeys but are NOT confirmed canonical PS99
+# keybinds. Estevan briefs canonical values during the CHECKPOINT debt pass.
+#
+# Note on seed-macro placement: each entry in `seedMacros[]` resolves to
+# `seed-macros/<slug>.macro/`. PluginLoader does NOT validate existence at
+# index time — `LibraryStore.installSeedsFromBundledPlugins()` (item 10c)
+# does that on first launch.
+schemaVersion: 1
+id: pet-sim-99
+displayName: "Pet Simulator 99"
+placeId: 8737899170
+windowClass: ["Roblox"]
+windowTitleMatch: "Pet Simulator 99|Roblox"
+defaultBindings:
+  open-egg: "e"
+  hatch: "h"
+  auto-fuse: "f"
+  rebirth: "r"
+  pet-inventory: "p"
+  use-potion: "q"
+  toggle-auto-click: "z"
+seedMacros:
+  - auto-hatch
+  - auto-grind-biome-1
+  - auto-rebirth
+  - auto-fuse-pets
+  - clan-battle-helper

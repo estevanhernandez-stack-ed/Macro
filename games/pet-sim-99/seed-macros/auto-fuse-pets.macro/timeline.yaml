@@ -1,0 +1,42 @@
+# subs + stopOn combo. The fuseOne sub-macro lives under timeline.subs and is
+# invoked once per main-loop iteration via invokeSub. The loop's target=0.2
+# matches the invokeSub event's t so we don't re-press pet-inventory on every
+# iteration — the inventory stays open. delayMs=800 gives the fuse animation
+# time to complete. stopOn exits cleanly when the "no more pets" cue appears.
+events:
+  - kind: keyDown
+    t: 0.0
+    key: "p"
+  - kind: keyUp
+    t: 0.05
+    key: "p"
+  - kind: invokeSub
+    t: 0.2
+    name: fuseOne
+  - kind: loop
+    t: 0.3
+    label: fuse-loop
+    target: 0.2
+    delayMs: 800
+stopOn:
+  - when:
+      gateKind: img
+      ref: no-pets-to-fuse
+    action: exit
+    message: No pets left to fuse — stopping
+subs:
+  fuseOne:
+    events:
+      - kind: keyDown
+        t: 0.0
+        key: "f"
+      - kind: keyUp
+        t: 0.05
+        key: "f"
+      - kind: gate
+        t: 0.2
+        gateKind: img
+        ref: fuse-confirm
+        retries: 3
+        timeout: 0.5
+        onFail: continue

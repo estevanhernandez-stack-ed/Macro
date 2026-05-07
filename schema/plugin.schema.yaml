@@ -1,0 +1,144 @@
+# =============================================================================
+# macRo plugin.yaml schema — v1
+# =============================================================================
+# Single source of truth for the `plugin.yaml` format. A plugin is the per-game
+# config the PluginLoader reads to populate the "what game?" sheet at record
+# time and to drive Recorder window-matching + Engine pre-flight resolution
+# of `target.windowClass[]` + `target.windowTitleMatch`.
+#
+# Plugins are not code. They're YAML + (optionally) seed `.macro` bundles +
+# image assets. macRo treats user-installed / URL-installed plugins as
+# "unsigned community" — see design spec § 9 trust model. App-bundled
+# plugins (e.g., the in-house PS99 plugin) are trusted.
+#
+# Spec ref: docs/superpowers/specs/2026-05-03-macro-mac-app-design.md § 9
+#           docs/spec.md > PluginLoader + > PS99 plugin
+# CLAUDE.md guardrail: do NOT break the schema-as-single-source-of-truth contract.
+#
+# Format: JSON-Schema-flavored shape (`type`, `properties`, `required`, etc.)
+# expressed as YAML for editability — same convention as macro.schema.yaml so
+# a future codegen pass over this schema produces a Swift `PluginManifest`
+# struct in the same style as the existing `MacroFormat` types.
+#
+# A plugin lives at:
+#
+#   games/<plugin-slug>/
+#     plugin.yaml             # this schema's `Plugin` definition
+#     seed-macros/<id>.macro/ # OPTIONAL canonical macros that ship with the plugin
+#     README.md               # OPTIONAL prose on what's game-specific, why
+# =============================================================================
+
+$schema: "https://json-schema.org/draft/2020-12/schema"
+$id: "https://macros.626labs.com/schema/plugin/v1.yaml"
+title: "macRo plugin.yaml (v1)"
+description: |
+  The plugin.yaml is the only game-specific config the engine reads.
+  PluginLoader resolves it through a generic indexer — no hardcoded
+  if-game-is-X branches anywhere in the app. See design spec § 9 for the
+  rationale + trust model.
+type: object
+required: [schemaVersion, id, displayName, placeId, windowClass]
+additionalProperties: false
+
+properties:
+
+  schemaVersion:
+    type: integer
+    description: |
+      Schema version this plugin.yaml was authored against. PluginLoader
+      refuses to load plugins whose schemaVersion it does not recognize
+      (forward-compat is the plugin author's responsibility; back-compat
+      is macRo's promise). Bumping this field requires a logged decision.
+    minimum: 1
+    maximum: 1
+
+  id:
+    type: string
+    description: |
+      Stable, slug-form plugin identifier. Convention: `<game-slug>`
+      (e.g., `pet-sim-99`). Used as the file system folder name under
+      `games/<id>/` and as the addressing key for conflict resolution
+      across the three index locations.
+    pattern: "^[a-z0-9][a-z0-9-]*[a-z0-9]$"
+
+  displayName:
+    type: string
+    description: |
+      Human-readable display name shown in the GamePickSheet card and as
+      the game tag on Library entries (e.g., "Pet Simulator 99").
+
+  placeId:
+    type: integer
+    description: |
+      Roblox place ID — the load-bearing index key for conflict resolution.
+      If two plugins claim the same placeId, PluginLoader keeps the
+      bundled one (or the first if all are same source) and surfaces a
+      `duplicateId` warning in `lastError` for visibility.
+    minimum: 1
+
+  windowClass:
+    type: array
+    description: |
+      NSAccessibility class array used by Recorder.WindowDetector to find
+      the target window at record time. Spec § 11 risk mitigation: Roblox
+      can change classes; an array means we can fall back without
+      re-authoring every plugin.
+    items:
+      type: string
+    minItems: 1
+
+  windowTitleMatch:
+    type: string
+    description: |
+      Optional regex matched against the target window's title. Useful
+      when a single windowClass spans multiple games (e.g., Roblox).
+
+  defaultBindings:
+    type: object
+    description: |
+      Optional map of `<action>: <key>` pairs surfaced as the
+      pre-populated keybind list when a recording starts in this game.
+      The key is the in-game action label (e.g., "open-egg"); the value
+      is the keyboard key the action is bound to (e.g., "e"). Macros
+      bound to this plugin reference these action labels via
+      `manifest.requires.bindings[].action`; the BindingMismatchPrompt
+      compares against `defaultBindings[action]` at pre-flight.
+    additionalProperties:
+      type: string
+
+  seedMacros:
+    type: array
+    description: |
+      Optional list of seed-macro slugs that ship with the plugin. Each
+      slug references a `seed-macros/<slug>.macro/` directory inside the
+      plugin folder. PluginLoader does NOT validate existence at index
+      time — that's `LibraryStore.installSeedsFromBundledPlugins()`'s
+      job (item 10c). Order matters: seeds install in array order, so
+      the first-listed seed is the one that bubbles to the top of the
+      Library card grid for a fresh install.
+    items:
+      type: string
+      pattern: "^[a-z0-9][a-z0-9-]*[a-z0-9]$"
+
+  pluginVersion:
+    type: string
+    description: |
+      Optional SemVer string for the plugin itself. Reserved for future
+      community-plugin compatibility checks against `compatibleEngineVersion`.
+      Not consumed by the engine in v1.
+    pattern: "^[0-9]+\\.[0-9]+\\.[0-9]+(-[A-Za-z0-9.-]+)?$"
+
+  compatibleEngineVersion:
+    type: string
+    description: |
+      Optional semver-range expression (e.g., ">=0.1.0 <0.2.0") declaring
+      the macRo engine versions this plugin was authored against.
+      Reserved for v2's plugin-author-kit; ignored by the v1 engine.
+
+  author:
+    type: string
+    description: |
+      Optional free-form author handle or display name. Surfaces in the
+      first-launch trust warning for unsigned community plugins
+      ("This plugin was authored by <author>. Review the README before
+      using.") per design spec § 9 trust model.

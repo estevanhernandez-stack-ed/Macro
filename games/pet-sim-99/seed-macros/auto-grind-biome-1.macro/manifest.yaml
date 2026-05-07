@@ -1,0 +1,24 @@
+id: auto-grind-biome-1
+name: Auto Grind — Biome 1
+description: Walks the Biome 1 grind loop with auto-collect. THE WOW MACRO — the one that runs in 60s against a freshly-loaded PS99.
+author: 626 Labs (PS99 plugin seed)
+version: 1.0.0
+schemaVersion: 1
+factoryPatchable: true
+recordedFrameRate: 60
+game:
+  placeId: 8737899170
+  name: Pet Simulator 99
+target:
+  windowClass:
+    - Roblox
+  windowTitleMatch: "Pet Simulator 99|Roblox"
+  coordinateSpace: window
+  recordedResolution:
+    width: 1920
+    height: 1080
+  resolutionPolicy: scale
+requires:
+  bindings:
+    - action: toggle-auto-click
+      expected: "z"

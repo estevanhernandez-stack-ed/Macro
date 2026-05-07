@@ -196,11 +196,70 @@ Item 6 (hand-authored test bundles) is a deliberate verification beat; it bridge
   Verify: From a clean library, click "Browse Feed" → mock-install a remote macro → confirm it appears in local. Manually edit it → check for updates → confirm warn-then-decide modal. Choose each path. Rollback. Delete. **CHECKPOINT #3 fires after this** — orchestrator pauses, summarizes library/install/update flow, waits for builder green-light before item 10.
   **Status:** complete — LibraryView (card grid + filter chips + feed-status chip + refresh + settings sheet + empty + no-network + drift prompt + delete confirm + context menus for Open in Editor / Reveal in Finder / auto-update toggle / Rollback to v / Delete), LibrarySettingsView (feed URL override with https/file:// scheme allowlist + per-macro auto-update toggles), LibraryViewModel (testable dedup-by-id + filter-by-game-slug). ContentView swaps the brand-glyph placeholder for a top brand strip + Library surface; post-record save paths refresh local inventory; empty-state "Start Recording" CTA fires Notification.Name `LibraryView.startRecordingRequested` which ContentView observes. 10 new tests in LibraryViewTests.swift pass (dedup local-wins, dedup keeps unique remotes, filter by slug, filter all, available-games dedup+sort, isEmpty true/false, pendingUpdate lookup, LibraryView + LibrarySettingsView init smoke). xcodebuild BUILD SUCCEEDED + TEST executed 46 / passed 44 / skipped 2 (pre-existing) / failed 0.
 
-- [ ] **10. PluginLoader + PS99 plugin (plugin.yaml + 5 seed macros) + first-launch seed install**
-  Spec ref: `spec.md > PluginLoader` + `spec.md > PS99 plugin` + design spec § 10 + `prd.md > Epic A first-launch`
-  What to build: `App/macRo/Domain/PluginLoader.swift` — index plugins from three locations (app-bundled `games/`, user-installed `~/Library/Application Support/macRo/Plugins/`, URL-installable via CLI subcommand `macRo install plugin <url-or-git>`). Each plugin indexed by `placeId`, surfaced in the Recorder's "What game?" sheet. Resolve conflicts deterministically (app-bundled wins on tie). Trust model: unsigned community plugins show Gatekeeper-style first-launch warning. `games/pet-sim-99/plugin.yaml` with `placeId: 8737899170`, displayName, window matchers (Roblox class array + title regex), `defaultBindings` (Estevan briefs canonical PS99 keybindings here — flag in process-notes if not yet captured). Author 5 PS99 seed macros: `auto-hatch.macro` (long-running, inventory-sensitive, Mythic-interrupt demo), `auto-grind-biome-1.macro` (position-critical, MOVE-lane demo), `auto-rebirth.macro` (UI-cue-heavy, GATES demo), `auto-fuse-pets.macro` (`subs:` + `stopOn:` combo demo), `clan-battle-helper.macro` (Estevan briefs PS99 clan-battle mechanic). All 5 must pass `macro-bundle-validator` clean. First-launch behavior: copy seed macros into user library after wizard completes.
-  Acceptance: PRD epic A first-launch behavior met. PluginLoader finds all 3 locations. All 5 seed macros validate clean. `auto-grind-biome-1.macro` runs in 60s against a freshly-loaded PS99 (the wow moment).
-  Verify: Reset library + permissions. Fresh launch. Walk wizard. Confirm 5 seed macros appear tagged "Pet Simulator 99". Run `auto-grind-biome-1.macro` against PS99 — confirm visible play within 60s.
+- [x] **10. PluginLoader + PS99 plugin — split into 10a / 10b / 10c upfront on 2026-05-06 per cycle-14 lesson (items 5/8/9 set the precedent — wide deliverable surfaces benefit from pre-split, not mid-build break-and-revise)**
+
+  *Original single-item scope was: PluginLoader.swift (index 3 locations, conflict resolution, trust model) + plugin.yaml schema + games/pet-sim-99/plugin.yaml + 5 hand-authored .macro bundles + macro-bundle-validator pass on each + first-launch seed-install wiring + Recorder game-pick integration + tests + commit. ~3 substantial files of code (PluginLoader + Recorder integration + tests) plus 6 hand-authored YAML/PNG asset bundles plus first-launch wiring. Pre-splitting at /build time avoids the friction.*
+
+  Spec ref (whole item 10): `spec.md > PluginLoader` + `spec.md > PS99 plugin` + design spec § 10 + `prd.md > Epic A first-launch`
+  Acceptance (whole item 10): PRD epic A first-launch behavior met. PluginLoader finds all 3 locations. All 5 seed macros validate clean. `auto-grind-biome-1.macro` runs in 60s against a freshly-loaded PS99 (the wow moment).
+  Verify (whole item 10): Reset library + permissions. Fresh launch. Walk wizard. Confirm 5 seed macros appear tagged "Pet Simulator 99". Run `auto-grind-biome-1.macro` against PS99 — confirm visible play within 60s.
+  **Status:** complete @ `<SHA>` — 10a + 10b + 10c shipped in a single commit per the split's commit-once contract. xcodebuild BUILD SUCCEEDED + TEST executed 60 tests / 58 passed / 2 skipped (pre-existing) / 0 failed on x86_64. Empirical PS99 verification of the first-launch wow path (reset library + UserDefaults flag → cmd+R → walk wizard → confirm 5 seeds tagged "Pet Simulator 99" → run `auto-grind-biome-1.macro` against PS99 → visible play within 60s) is owed-to-Estevan as part of CHECKPOINT debt pass.
+
+- [x] **10a. `PluginLoader` core + plugin.yaml schema + indexing + trust model + tests**
+  Spec ref: `spec.md > PluginLoader` + design spec § 10
+  What to build: `App/macRo/Domain/PluginLoader.swift` — `@MainActor @Observable` singleton (`PluginLoader.shared`). Indexes plugins from three locations: (1) app-bundled `games/` directory inside the app resource bundle, (2) user-installed `~/Library/Application Support/macRo/Plugins/`, (3) future URL-installable (CLI flag deferred — leave a public `installPlugin(from:URL)` method as a stub that throws `PluginLoaderError.urlInstallNotYetWired`). `Plugin` struct: `id, displayName, placeId: Int, windowClass: [String], windowTitleMatch: String?, defaultBindings: [String: String], seedMacrosURL: URL, source: .bundled | .userInstalled | .urlInstalled`. Conflict resolution by `placeId`: bundled wins on tie. Trust model: bundled = trusted, userInstalled / urlInstalled = unsigned-community, surface a `Plugin.isUnsigned: Bool` flag and a one-time first-launch warning seam (`firstLaunchWarningPending: [Plugin]` published state; UI prompt deferred to 10c). Add `schema/plugin.schema.yaml` capturing the plugin.yaml shape (placeId, displayName, windowMatchers, defaultBindings keys/values, seedMacros[]). Tests in `App/macRoTests/PluginLoaderTests.swift`: (a) bundled discovery finds the test fixture plugin, (b) user-installed discovery walks the override directory, (c) conflict resolution (same placeId in both) returns the bundled instance, (d) trust flag is true for user-installed and false for bundled.
+  Acceptance: `PluginLoader.shared` exists; `loadAll()` populates `plugins: [Plugin]`; conflict resolution + trust flag work; tests pass.
+  Verify: `xcodebuild build` + `xcodebuild test` succeed. No UI yet (10c integrates the picker + first-launch warning).
+  **Status:** complete — PluginLoader (~454 LoC) + plugin.yaml schema + 7 PluginLoader tests landed as part of the parent item-10 commit `<SHA>`.
+
+- [x] **10b. PS99 plugin authoring — `games/pet-sim-99/plugin.yaml` + 5 seed macros + macro-bundle-validator pass**
+  Spec ref: `spec.md > PS99 plugin` + `prd.md > Epic A first-launch`
+  What to build: `games/pet-sim-99/plugin.yaml` with:
+  ```yaml
+  schemaVersion: 1
+  id: pet-sim-99
+  displayName: "Pet Simulator 99"
+  placeId: 8737899170
+  windowClass: ["Roblox"]
+  windowTitleMatch: "Pet Simulator 99|Roblox"
+  defaultBindings:
+    # ESTEVAN: confirm canonical PS99 keybindings — placeholder values land here
+    # for now and get refined when you brief the actual hotkeys
+    open-egg: "e"
+    hatch: "h"
+    auto-fuse: "f"
+    rebirth: "r"
+    pet-inventory: "p"
+  seedMacros:
+    - auto-hatch
+    - auto-grind-biome-1
+    - auto-rebirth
+    - auto-fuse-pets
+    - clan-battle-helper
+  ```
+  5 hand-authored `.macro` bundles in `games/pet-sim-99/seed-macros/`:
+    - `auto-hatch.macro` — long-running, inventory-sensitive. Demonstrates `loop` event + `delayMs` (the v1 schema addition from 7.5) + a `stopOn` block triggered by a Mythic-pet UI gate. Stub gate PNG (1x1 RGBA, like item 6's fixtures) holds the slot until real PS99 captures replace it post-CHECKPOINT debt pass.
+    - `auto-grind-biome-1.macro` — position-critical, MOVE-lane demo. WASD held-key sequences walking a known PS99 path; `target.recordedResolution` set to a common 1080p Roblox window size. **THE WOW-MOMENT MACRO** — the one that runs in 60s against a freshly-loaded PS99.
+    - `auto-rebirth.macro` — UI-cue-heavy, GATES demo. Image-anchored gate sequence walking the rebirth menu. `factoryPatchable: true` so the future factory pipeline can patch it when PS99 updates the rebirth UI.
+    - `auto-fuse-pets.macro` — `subs:` + `stopOn:` combo demo. Defines a `fuseOne` sub-macro and invokes it in a loop with a stopOn for "no more pets to fuse" UI cue.
+    - `clan-battle-helper.macro` — Estevan briefs the PS99 clan-battle mechanic for the actual sequence; placeholder authoring for now (an empty timeline + manifest that validates clean), to be refined in CHECKPOINT debt pass when PS99 keybindings are confirmed.
+  Each bundle: `manifest.yaml` (id, name, version 1.0.0, schemaVersion 1, target with placeId, requires.bindings referencing defaultBindings keys, factoryPatchable as appropriate, plugin: pet-sim-99), `timeline.yaml` (per the macro shape above), `gates/*.png` (1x1 RGBA stubs for now), and zero `raw-video.mov` (these are author-shaped, not recorded). Each must pass the inline macro-bundle-validator checklist clean (matches item 6's pattern of inline validation when no Agent tool is available). Add `App/macRoTests/PS99SeedMacrosTests.swift` with one test per fixture asserting `MacroBundle.load(at:)` succeeds.
+  Acceptance: All 5 bundles parse clean via `MacroBundle.load(at:)`. All 5 pass inline macro-bundle-validator checklist (no critical or substantive findings). PluginLoader (10a) discovers `games/pet-sim-99/plugin.yaml` correctly when it's added to the app resource bundle.
+  Verify: 5 fixture-load tests pass. Validator inline-applied per-bundle in commit message body.
+  **Status:** complete — `games/pet-sim-99/plugin.yaml` + 5 hand-authored seed `.macro` bundles (auto-hatch, auto-grind-biome-1, auto-rebirth, auto-fuse-pets, clan-battle-helper) + 7 stub gate PNGs + 5 PS99SeedMacrosTests landed as part of the parent item-10 commit `<SHA>`. Stub gate PNGs flagged for CHECKPOINT debt-pass replacement when Estevan briefs canonical PS99 keybindings + records real captures.
+
+- [x] **10c. First-launch seed install + Recorder game-pick integration + tests + commit**
+  Spec ref: `spec.md > PluginLoader` + `prd.md > Epic A first-launch`
+  What to build:
+    - **First-launch seed install** — `LibraryStore` extension `installSeedsFromBundledPlugins()`. Called from `OnboardingView`'s "Continue" handler after both permissions are granted (or from `App.swift`'s post-onboarding `.task { … }`). For each bundled plugin, copy `seedMacros[]` into `~/Library/Application Support/macRo/Library/<plugin.id>/`. Idempotent — uses a `UserDefaults` flag `macRo.seedsInstalled.<pluginId>` to avoid re-copying on subsequent launches. Bundled seed macros do NOT get `.installhash` sidecars (they're not from the remote feed).
+    - **Recorder game-pick integration** — `App/macRo/UI/GamePickSheet.swift` (created at item 7) currently has hardcoded PS99 + Untagged. Replace the hardcode with `PluginLoader.shared.plugins` — each plugin appears as a row, plus an "Untagged" row for ad-hoc recordings. Window-match logic in `Recorder.swift` already exists; wire it to read `windowClass` + `windowTitleMatch` from the picked plugin's `defaultBindings`-adjacent fields.
+    - **First-launch trust warning** — when `firstLaunchWarningPending` (from 10a) is non-empty, show a one-shot Gatekeeper-style modal listing each unsigned plugin with "Allow" / "Remove" buttons. SwiftUI sheet, all visuals through `MacRoTheme`. Defer to 10c so we don't author the View in 10a where there's no UI.
+    - At least 2 integration tests in `App/macRoTests/PluginLoaderTests.swift`: (e) seed-install copies the 5 PS99 seeds into the test library and they appear via `LibraryStore.reloadLocalInventory()`, (f) seed-install is idempotent (calling twice is a no-op).
+    - `xcodebuild build` + `xcodebuild test` succeed.
+    - **Commit** with `feat(plugins): item 10 — ...` prefix; include 10a + 10b + 10c deliverables in one commit. Mark item 10 as `[x]` in `docs/checklist.md` with status line referencing the SHA. Backfill commit `chore(checklist): backfill item 10 SHA reference`.
+  Acceptance: PRD epic A first-launch behavior met (post-wizard, 5 PS99 seeds appear in Library tagged "Pet Simulator 99"). GamePickSheet shows PS99 from the plugin index. Idempotent across launches.
+  Verify: Reset library + the `seedsInstalled.pet-sim-99` UserDefaults key. Fresh cmd+R launch. Walk wizard. Confirm 5 PS99 seeds appear in Library tagged "Pet Simulator 99". Run `auto-grind-biome-1.macro` against PS99 — confirm visible play within 60s. (This is the wow moment; empirical PS99 verification owed-to-Estevan as part of CHECKPOINT debt pass.)
+  **Status:** complete — `LibraryStore.installSeedsFromBundledPlugins()` extension (idempotent first-launch seed copy + UserDefaults flag per plugin), `OnboardingView` post-permission Continue handler that calls `PluginLoader.loadAll()` + the seed install before transitioning, `App.swift` `.task { … }` re-runs the same idempotent pair on every cold launch (covers users who already onboarded pre-10c), `GamePickSheet` rewritten to render plugins dynamically (bundled = teal "Default" tag, community = warn-amber "Community" tag, Untagged escape hatch at the bottom), `FirstLaunchTrustWarning` Gatekeeper-style sheet mounted in `ContentView` keyed off `firstLaunchWarningPending` non-empty, `GameSelection` extended with `.plugin(PluginPick)` case so non-PS99 plugins flow through the recorder unchanged. 2 new PluginLoader integration tests pass (`testSeedInstallCopiesPS99SeedsIntoLibrary`, `testSeedInstallIsIdempotent`). xcodebuild BUILD SUCCEEDED + TEST executed 60 / passed 58 / skipped 2 (pre-existing) / failed 0 on x86_64. Empirical PS99 verification (run `auto-grind-biome-1.macro` against PS99, observe visible play within 60s) is the wow-moment owed-to-Estevan as part of CHECKPOINT debt pass.
 
 - [ ] **11. Distribution + release pipeline — Sparkle + GitHub Actions notarize + appcast + rollback**
   Spec ref: `spec.md > Distribution & release` + `spec.md > Deployment — Identity & Signing` + `prd.md > Epic F`

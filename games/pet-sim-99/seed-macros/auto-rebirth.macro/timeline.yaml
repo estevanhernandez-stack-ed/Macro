@@ -1,0 +1,36 @@
+# UI-cue-heavy, GATES demo. Image-anchored gate sequence walking the rebirth
+# menu. retries: 5 + timeout: 0.5 gives the engine 5 chances at 500ms each
+# (~2.5s window) to confirm the confirm-button is visible before clicking; if
+# missing, onFail: abort halts the run cleanly. The success gate uses
+# onFail: abort too — we don't want to loop on a phantom rebirth.
+events:
+  - kind: keyDown
+    t: 0.0
+    key: "r"
+  - kind: keyUp
+    t: 0.05
+    key: "r"
+  - kind: gate
+    t: 0.3
+    gateKind: img
+    ref: rebirth-confirm-button
+    retries: 5
+    timeout: 0.5
+    onFail: abort
+  - kind: click
+    t: 0.5
+    x: 960
+    y: 540
+    button: left
+  - kind: gate
+    t: 1.5
+    gateKind: img
+    ref: rebirth-success
+    retries: 6
+    timeout: 0.5
+    onFail: abort
+  - kind: loop
+    t: 2.0
+    label: rebirth-loop
+    target: 0.0
+    delayMs: 5000

@@ -1,0 +1,35 @@
+# Long-running, inventory-sensitive — the loop runs until the Mythic-prompt
+# image trigger fires the stopOn block (action: exit). delayMs = 1500 puts a
+# 1.5s pause between iterations so the game's hatch animation completes
+# before the next tap.
+events:
+  - kind: keyDown
+    t: 0.0
+    key: "e"
+  - kind: keyUp
+    t: 0.05
+    key: "e"
+  - kind: keyDown
+    t: 0.2
+    key: "h"
+  - kind: keyUp
+    t: 0.25
+    key: "h"
+  - kind: gate
+    t: 0.4
+    gateKind: img
+    ref: egg-prompt
+    retries: 3
+    timeout: 2.0
+    onFail: continue
+  - kind: loop
+    t: 0.5
+    label: hatch-loop
+    target: 0.0
+    delayMs: 1500
+stopOn:
+  - when:
+      gateKind: img
+      ref: mythic-prompt
+    action: exit
+    message: Mythic pet detected — stopping

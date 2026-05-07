@@ -73,6 +73,15 @@ targets:
         excludes:
           - "Info.plist"
           - "macRo.entitlements"
+      # `games/` ships as a folder reference into the app bundle so
+      # `PluginLoader.shared.bundledPluginsRootURL` resolves at runtime
+      # (item 10a → `Bundle.main.resourceURL/games/`). Folder reference
+      # preserves the on-disk tree (plugin.yaml + seed-macros/<id>.macro/...)
+      # without flattening per-bundle resources into the app's flat
+      # resources directory — same reason macRoTests excludes `Fixtures`.
+      - path: ../games
+        type: folder
+        buildPhase: resources
     dependencies:
       - package: Yams
     settings:

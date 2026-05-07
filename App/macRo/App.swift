@@ -59,6 +59,21 @@ struct MacRoApp: App {
                 }
                 NSApp.activate(ignoringOtherApps: true)
             }
+            .task {
+                // 10c — post-onboarding bootstrap. Idempotent on every
+                // launch: indexes plugins + installs seed macros for any
+                // bundled plugin whose `macRo.seedsInstalled.<id>` flag
+                // is unset. Covers users who already onboarded before
+                // 10c shipped (their seeds haven't been installed yet)
+                // AND every cold launch after the wizard
+                // (PluginLoader.shared.plugins gets refreshed so a
+                // newly-dropped community plugin shows up in
+                // GamePickSheet without a relaunch). Skipped pre-grant —
+                // there's no point indexing plugins for a wizard.
+                guard permissions.allGranted else { return }
+                await PluginLoader.shared.loadAll()
+                await LibraryStore.shared.installSeedsFromBundledPlugins()
+            }
         }
         .windowResizability(.contentSize)
     }

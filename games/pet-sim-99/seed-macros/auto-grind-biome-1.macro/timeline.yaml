@@ -1,0 +1,39 @@
+# Position-critical, MOVE-lane demo. WASD held-key sequences walking a known
+# PS99 path. No gates by design — pure movement + auto-click toggle. Walks a
+# rectangular loop: forward 3s → left turn 0.5s → forward 4s → back 3s,
+# repeating immediately with no delay between iterations.
+events:
+  - kind: keyDown
+    t: 0.0
+    key: "z"
+  - kind: keyUp
+    t: 0.08
+    key: "z"
+  - kind: keyDown
+    t: 0.2
+    key: "w"
+  - kind: keyUp
+    t: 3.2
+    key: "w"
+  - kind: keyDown
+    t: 3.3
+    key: "a"
+  - kind: keyUp
+    t: 3.8
+    key: "a"
+  - kind: keyDown
+    t: 3.9
+    key: "w"
+  - kind: keyUp
+    t: 7.9
+    key: "w"
+  - kind: keyDown
+    t: 8.0
+    key: "s"
+  - kind: keyUp
+    t: 11.0
+    key: "s"
+  - kind: loop
+    t: 11.2
+    label: grind-loop
+    target: 0.0

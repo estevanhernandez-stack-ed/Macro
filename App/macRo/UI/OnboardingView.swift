@@ -103,6 +103,11 @@ private struct EntitlementsStep: View {
     /// launch by virtue of `@State` lifetime.
     @State private var screenRecordingClickedOnce = false
 
+    /// True while the post-permission seed install + plugin index pass
+    /// is running. The Continue button reads "Setting up your library"
+    /// during this window so the user knows the click took.
+    @State private var isSettingUpLibrary = false
+
     var body: some View {
         VStack(spacing: 24) {
             VStack(spacing: 8) {
@@ -153,16 +158,42 @@ private struct EntitlementsStep: View {
             Spacer(minLength: 0)
 
             PrimaryButton(
-                title: permissions.allGranted ? "Continue to library" : "Waiting on grants",
-                action: { /* gated by enabled */ }
+                title: continueButtonTitle,
+                action: handleContinueTap
             )
-            .disabled(!permissions.allGranted)
-            .opacity(permissions.allGranted ? 1.0 : 0.55)
+            .disabled(!permissions.allGranted || isSettingUpLibrary)
+            .opacity((permissions.allGranted && !isSettingUpLibrary) ? 1.0 : 0.55)
 
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 48)
         .padding(.bottom, 24)
+    }
+
+    // MARK: - Continue button (post-permission orchestration)
+
+    private var continueButtonTitle: String {
+        if isSettingUpLibrary { return "Setting up your library" }
+        if permissions.allGranted { return "Continue to library" }
+        return "Waiting on grants"
+    }
+
+    /// Run the post-onboarding bootstrap:
+    /// 1. Index every plugin location via `PluginLoader.shared.loadAll()`.
+    /// 2. Copy bundled plugins' seed macros into the user library
+    ///    (`LibraryStore.installSeedsFromBundledPlugins()`).
+    /// Both calls are idempotent — UserDefaults flags + per-file existence
+    /// checks make repeat invocations no-ops. Once the install resolves,
+    /// `App.swift`'s WindowGroup body re-evaluates and swaps to
+    /// `ContentView` because `permissions.allGranted == true`.
+    private func handleContinueTap() {
+        guard permissions.allGranted, !isSettingUpLibrary else { return }
+        isSettingUpLibrary = true
+        Task { @MainActor in
+            await PluginLoader.shared.loadAll()
+            await LibraryStore.shared.installSeedsFromBundledPlugins()
+            isSettingUpLibrary = false
+        }
     }
 
     // MARK: - Screen Recording button state

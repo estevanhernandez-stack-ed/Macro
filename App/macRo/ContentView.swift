@@ -49,6 +49,16 @@ struct ContentView: View {
     /// can dismiss cleanly before the confirmation appears.
     @State private var revealConfirmation: RevealConfirmation?
 
+    /// Plugin index. Bound from the singleton so any change to
+    /// `firstLaunchWarningPending` re-renders the trust-warning sheet.
+    /// (10c — first-launch trust prompt for unsigned community plugins.)
+    @State private var pluginLoader: PluginLoader = .shared
+
+    /// Drives the FirstLaunchTrustWarning sheet's presentation. Computed
+    /// off `pluginLoader.firstLaunchWarningPending`; the sheet stays up
+    /// until every pending plugin has had a decision (Allow or Remove).
+    @State private var showingTrustWarning: Bool = false
+
     var body: some View {
         ZStack {
             MacRoTheme.Color.bgPage
@@ -126,6 +136,23 @@ struct ContentView: View {
                 },
                 secondaryButton: .cancel(Text("OK"))
             )
+        }
+        .sheet(isPresented: $showingTrustWarning) {
+            FirstLaunchTrustWarning(
+                loader: pluginLoader,
+                onAllResolved: { showingTrustWarning = false }
+            )
+        }
+        .onChange(of: pluginLoader.firstLaunchWarningPending.count) { _, newValue in
+            // Pop the trust prompt as soon as a pending plugin shows up,
+            // dismiss when the list empties. Bundled plugins never land
+            // here (PluginLoader filters on isUnsigned).
+            showingTrustWarning = newValue > 0
+        }
+        .onAppear {
+            // Cover the case where loadAll() ran in App.swift's .task
+            // before this view's onChange wiring was active.
+            showingTrustWarning = !pluginLoader.firstLaunchWarningPending.isEmpty
         }
     }
 
