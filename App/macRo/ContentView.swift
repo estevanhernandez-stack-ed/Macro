@@ -54,25 +54,41 @@ struct ContentView: View {
             MacRoTheme.Color.bgPage
                 .ignoresSafeArea()
 
-            VStack(spacing: 24) {
-                BrandGlyph()
-                    .frame(width: 96, height: 96)
-
-                Text("macRo")
-                    .font(MacRoTheme.Font.display)
-                    .foregroundStyle(MacRoTheme.Color.fg1)
-
-                Text("Imagine Something Else.")
-                    .font(MacRoTheme.Font.bodySmall)
-                    .foregroundStyle(MacRoTheme.Color.fg2)
-                    .tracking(0.3)
-
-                StartRecordingButton {
-                    showingGamePick = true
+            VStack(spacing: 0) {
+                // Brand strip — keeps the wordmark + record CTA at the
+                // top of the window so the entry point is one glance away
+                // even after the library fills up.
+                HStack(alignment: .center, spacing: MacRoTheme.Spacing.lg) {
+                    BrandGlyph()
+                        .frame(width: 44, height: 44)
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text("macRo")
+                            .font(MacRoTheme.Font.heading1)
+                            .foregroundStyle(MacRoTheme.Color.fg1)
+                        Text("Imagine Something Else.")
+                            .font(MacRoTheme.Font.monoMicro)
+                            .tracking(0.12 * 11)
+                            .foregroundStyle(MacRoTheme.Color.fg3)
+                    }
+                    Spacer()
+                    StartRecordingButton {
+                        showingGamePick = true
+                    }
                 }
-                .padding(.top, 8)
+                .padding(.horizontal, MacRoTheme.Spacing.lg)
+                .padding(.vertical, MacRoTheme.Spacing.md)
+                .background(MacRoTheme.Color.bgPage)
+
+                Divider().background(MacRoTheme.Color.laneBorder)
+
+                // Library surface — empty state lives inside LibraryView
+                // until the user records or installs their first macro.
+                LibraryView()
             }
-            .padding(48)
+        }
+        .frame(minWidth: 920, minHeight: 600)
+        .onReceive(NotificationCenter.default.publisher(for: LibraryView.startRecordingRequested)) { _ in
+            showingGamePick = true
         }
         .sheet(isPresented: $showingGamePick) {
             GamePickSheet(
@@ -119,7 +135,9 @@ struct ContentView: View {
         switch outcome {
         case .save:
             // One-shot save — current v1 behavior. The bundle is already
-            // on disk; just confirm and offer reveal-in-Finder.
+            // on disk; refresh the library inventory so the new macro
+            // shows up in the grid immediately.
+            Task { await LibraryStore.shared.reloadLocalInventory() }
             revealConfirmation = RevealConfirmation(
                 url: bundleURL,
                 title: "Recording saved",
@@ -132,6 +150,7 @@ struct ContentView: View {
             // copying the bundle would orphan its gates/ directory.
             do {
                 try appendLoopEvent(toBundleAt: bundleURL, delaySeconds: seconds)
+                Task { await LibraryStore.shared.reloadLocalInventory() }
                 revealConfirmation = RevealConfirmation(
                     url: bundleURL,
                     title: "Saved as loop",
@@ -268,10 +287,7 @@ struct ContentView: View {
     }
 
     private func savedAlertMessage(for url: URL) -> String {
-        // EditorView lands at item 8 — surface that explicitly so the
-        // user knows the bundle is on disk and inspectable but not yet
-        // opened in an editor.
-        return "Saved to \(url.lastPathComponent). Open in Finder to inspect — the in-app editor lands at item 8."
+        return "Saved to \(url.lastPathComponent). It's now in your Library — Run it from there or right-click for editor / rollback / delete."
     }
 }
 
