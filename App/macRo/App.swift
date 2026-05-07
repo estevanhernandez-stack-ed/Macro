@@ -95,19 +95,25 @@ struct MacRoApp: App {
                 NSApp.activate(ignoringOtherApps: true)
             }
             .task {
-                // 10c — post-onboarding bootstrap. Idempotent on every
-                // launch: indexes plugins + installs seed macros for any
-                // bundled plugin whose `macRo.seedsInstalled.<id>` flag
-                // is unset. Covers users who already onboarded before
-                // 10c shipped (their seeds haven't been installed yet)
-                // AND every cold launch after the wizard
-                // (PluginLoader.shared.plugins gets refreshed so a
-                // newly-dropped community plugin shows up in
-                // GamePickSheet without a relaunch). Skipped pre-grant —
-                // there's no point indexing plugins for a wizard.
+                // Post-onboarding plugin index. Refreshes
+                // PluginLoader.shared.plugins on every launch so a
+                // newly-dropped community plugin shows up without a
+                // relaunch. Skipped pre-grant — there's no point
+                // indexing plugins for a wizard.
+                //
+                // Seed macro auto-install was REMOVED 2026-05-07 per
+                // the "premium AHK for Mac" pivot. The bundled PS99
+                // seed macros were authored blind (placeholder coords,
+                // 1×1 stub gate PNGs, placeholder keybinds) and
+                // misfire against real PS99 — the auto-fuse-pets
+                // inventory-loop bug was the proof. Seeds remain on
+                // disk in the app bundle as opt-in examples; users
+                // record their own macros. To re-enable later as an
+                // opt-in install, expose a button on LibraryView's
+                // empty state that calls
+                // LibraryStore.shared.installSeedsFromBundledPlugins().
                 guard permissions.allGranted else { return }
                 await PluginLoader.shared.loadAll()
-                await LibraryStore.shared.installSeedsFromBundledPlugins()
             }
         }
         .windowResizability(.contentSize)
