@@ -35,15 +35,19 @@ final class UpdaterHost {
 
     private init() {}
 
-    /// Construct the updater controller exactly once. startingUpdater:
-    /// true triggers automatic checks per Info.plist's
-    /// SUEnableAutomaticChecks + SUScheduledCheckInterval. Delegates
-    /// stay nil for v1 — the standard controller's defaults handle
-    /// alert UI, install-on-quit, signature verification, etc.
+    /// Construct the updater controller exactly once.
+    ///
+    /// `startingUpdater` is gated to `false` until the four-step bootstrap
+    /// lands (Sparkle EdDSA keypair + Apple Developer ID cert + notarization
+    /// creds + GitHub Pages enablement — see `tools/release/README.md`).
+    /// While `SUPublicEDKey` is the `REPLACE_WITH_GENERATED_PUBLIC_KEY`
+    /// placeholder and the appcast URL 404s, auto-firing the updater on
+    /// launch surfaces an error dialog whose dismiss path can crash. Flip
+    /// to `true` in the same commit that pastes in the real public key.
     func bootIfNeeded() {
         guard controller == nil else { return }
         controller = SPUStandardUpdaterController(
-            startingUpdater: true,
+            startingUpdater: false,
             updaterDelegate: nil,
             userDriverDelegate: nil
         )
